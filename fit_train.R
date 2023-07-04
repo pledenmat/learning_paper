@@ -178,7 +178,6 @@ for (s in subs) {
 
 train_alpha <- subset(train,manip=="alpha")
 train_beta <- subset(train,manip=="beta")
-
 # Fit only a/b ------------------------------------------------------------
 rm(obs_nn)
 par_ab <- data.frame(condition=rep(c("minus","plus","both"),each=length(subs)),sub=subs,
@@ -186,10 +185,12 @@ par_ab <- data.frame(condition=rep(c("minus","plus","both"),each=length(subs)),s
 ldc <- function(data,a,b){
   return(( 1 /(1 + exp( (1/sqrt(data$rt2+.00001))* (-a*data$evidence - b)))))
 }
+go_to("fit")
 for (s in subs) {
   temp_dat <- subset(train,sub==s)
   if ((file.exists("obs_nn.Rdata"))) {
     load("obs_nn.Rdata")
+    load("fit_ab.Rdata")
   }else{
     # Get evidence prediction -------------------------------------------------
     ddm_file1 <- paste0('ddm/ddmfit_',s,'_minus.Rdata')
@@ -284,39 +285,40 @@ for (s in subs) {
     
     
     
+    # Fit alpha/beta ====
+    
+    fit <- nls(cj~( 1 /(1 + exp( (1/sqrt(rt2+.00001))* (-a*evidence - b)))),
+               data = subset(obs_nn,sub==s),
+               start = list(a=15,b=0),
+               trace = T)
+    par_ab[par_ab$condition=="both","alpha"] <- coef(fit)["a"]
+    par_ab[par_ab$condition=="both","beta"] <- coef(fit)["b"]
+    
+    obs_nn[obs_nn$sub==s,"cj_pred"] <- ldc(obs_nn[obs_nn$sub==s,],coef(fit)["a"],coef(fit)["b"])
+    
+    fit <- nls(cj~( 1 /(1 + exp( (1/sqrt(rt2+.00001))* (-a*evidence - b)))),
+               data = subset(obs_nn,sub==s&condition=="minus"),
+               start = list(a=15,b=0),
+               trace = T)
+    par_ab[par_ab$condition=="minus","alpha"] <- coef(fit)["a"]
+    par_ab[par_ab$condition=="minus","beta"] <- coef(fit)["b"]
+    
+    obs_nn[obs_nn$sub==s&obs_nn$condition=="minus","cj_pred_per_cond"] <- ldc(
+      obs_nn[obs_nn$sub==s&obs_nn$condition=="minus",],coef(fit)["a"],coef(fit)["b"])
+    
+    fit <- nls(cj~( 1 /(1 + exp( (1/sqrt(rt2+.00001))* (-a*evidence - b)))),
+               data = subset(obs_nn,sub==s&condition=="plus"),
+               start = list(a=15,b=0),
+               trace = T)
+    par_ab[par_ab$condition=="plus","alpha"] <- coef(fit)["a"]
+    par_ab[par_ab$condition=="plus","beta"] <- coef(fit)["b"]
+    
+    obs_nn[obs_nn$sub==s&obs_nn$condition=="plus","cj_pred_per_cond"] <- ldc(
+      obs_nn[obs_nn$sub==s&obs_nn$condition=="plus",],coef(fit)["a"],coef(fit)["b"])
+    
+    
+    
   }
-  # Fit alpha/beta ====
-  
-  fit <- nls(cj~( 1 /(1 + exp( (1/sqrt(rt2+.00001))* (-a*evidence - b)))),
-             data = subset(obs_nn,sub==s),
-             start = list(a=15,b=0),
-             trace = T)
-  par_ab[par_ab$condition=="both","alpha"] <- coef(fit)["a"]
-  par_ab[par_ab$condition=="both","beta"] <- coef(fit)["b"]
-  
-  obs_nn[obs_nn$sub==s,"cj_pred"] <- ldc(obs_nn[obs_nn$sub==s,],coef(fit)["a"],coef(fit)["b"])
-  
-  fit <- nls(cj~( 1 /(1 + exp( (1/sqrt(rt2+.00001))* (-a*evidence - b)))),
-             data = subset(obs_nn,sub==s&condition=="minus"),
-             start = list(a=15,b=0),
-             trace = T)
-  par_ab[par_ab$condition=="minus","alpha"] <- coef(fit)["a"]
-  par_ab[par_ab$condition=="minus","beta"] <- coef(fit)["b"]
-  
-  obs_nn[obs_nn$sub==s&obs_nn$condition=="minus","cj_pred_per_cond"] <- ldc(
-    obs_nn[obs_nn$sub==s&obs_nn$condition=="minus",],coef(fit)["a"],coef(fit)["b"])
-  
-  fit <- nls(cj~( 1 /(1 + exp( (1/sqrt(rt2+.00001))* (-a*evidence - b)))),
-             data = subset(obs_nn,sub==s&condition=="plus"),
-             start = list(a=15,b=0),
-             trace = T)
-  par_ab[par_ab$condition=="plus","alpha"] <- coef(fit)["a"]
-  par_ab[par_ab$condition=="plus","beta"] <- coef(fit)["b"]
-  
-  obs_nn[obs_nn$sub==s&obs_nn$condition=="plus","cj_pred_per_cond"] <- ldc(
-    obs_nn[obs_nn$sub==s&obs_nn$condition=="plus",],coef(fit)["a"],coef(fit)["b"])
-  
-  
 }
 obs_nn$mse <- (obs_nn$cj_pred - obs_nn$cj)^2
 cost <- with(obs_nn,aggregate(mse,by=list(sub=sub,trial=trial),mean))
@@ -336,7 +338,6 @@ cost_per_cond$npar <- 4
 bic_custom <- function(Residuals,k,n){
   return(log(n)*k+n*log(Residuals/n))
 }
-
 par$cost_old <- par$cost_ldc
 par$cost_ldc <- par$cost_ldc_per_cond
 
@@ -374,111 +375,6 @@ with(par_tot,aggregate(bic,by=list(fit=fit),mean))
 # par$bic_eta0 <- bic_custom(par$cost_ldc_eta0,0,par$ntrials)
 # par$diff <- par$bic - par$bic_eta0
 # summary(par$bic - par$bic_eta0)
-# Investigate alpha/beta traces -------------------------------------------
-par$alpha <- NA
-par$beta <- NA
-for (s in subs) {
-  for (cond in conditions) {
-    print(paste("Retrieving alpha/beta for sub",s,cond,"condition"))
-    temp_dat <- subset(train,sub==s&condition==cond)
-    temp_par <- subset(par,sub==s&condition==cond)
-    
-    drift <- temp_par$drift 
-    difficulty <- temp_par$difflevel
-    
-    temp_dat$evidence <- mean(temp_par$bound)
-    
-    temp_dat_nn <- temp_dat[rep(seq_len(nrow(temp_dat)), each=Nupdate_per_trial), ]
-    
-    for (trial in seq(1,dim(temp_dat_nn)[1],Nupdate_per_trial)) {
-      #' Post decision drift rate sign depends on accuracy 
-      if (temp_dat_nn[trial,"cor"] %in% c(1,'correct','cor')) {
-        temp_dat_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
-          temp_dat_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
-          DDM_fixed_time(v = drift[difficulty==temp_dat_nn[trial,"difflevel"]],
-                         time=temp_dat_nn[trial,"RTconf"],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
-      }else if (temp_dat_nn[trial,"cor"] %in% c(-1,0,'error','err')) {
-        temp_dat_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
-          temp_dat_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
-          DDM_fixed_time(v = - drift[difficulty==temp_dat_nn[trial,"difflevel"]],
-                         time=temp_dat_nn[trial,"RTconf"],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
-      }
-    }
-    
-    #' Input data (evidence and intercept)
-    x = matrix(c(temp_dat_nn$evidence, #ev
-                 rep(beta_input,dim(temp_dat_nn)[1]), #bias
-                 1/sqrt(temp_dat_nn$rt2)),  ncol=3) #time
-    
-    #' Output (confidence)
-    y = temp_dat_nn$cj 
-    
-    #' Initialize weights
-    w <- w0
-    
-    results <- train_model(x,w,y,eta=mean(temp_par$eta),error_type = "mse",trace=F)
-    
-    par[par$sub==s&par$condition==cond,"alpha"] <- results$w[1]
-    par[par$sub==s&par$condition==cond,"beta"] <- results$w[2]
-  }
-}
-
-# Look at estimated parameters -----------------------------------------
-go_to("plots")
-
-# Learning rate
-jpeg(paste0("eta_",Nupdate_per_trial,".jpg"),width=20,height=15,units='c <- ',res=300)
-hist(par$eta, xlab = "Learning rate", 
-     main = paste("Estimated learning rate,",Nupdate_per_trial,"updates per trial"))
-dev.off()
-
-breaks_alpha <- seq(-2,14,2)
-breaks_beta <- seq(-10,30,5)
-# Alpha
-jpeg("Alpha_hist_exp2a.jpg",width=20,height=15,units='cm',res=300)
-hist(subset(par,condition=="minus"&manip=="alpha")$alpha,col=rgb(1,0,0,.5), xlab = "Alpha", 
-     main = "Estimated alpha - Alpha experiment",breaks=breaks_alpha)
-hist(subset(par,condition=="plus"&manip=="alpha")$alpha,add=T, col = rgb(0,0,1,.5),breaks=breaks_alpha)
-legend("topright",bty = "n",fill = c(rgb(0,0,1,.5),rgb(1,0,0,.5)),legend = c("Minus","Plus"))
-dev.off()
-
-jpeg("Alpha_hist_exp2b.jpg",width=20,height=15,units='cm',res=300)
-hist(subset(par,condition=="minus"&manip=="beta")$alpha,col=rgb(1,0,0,.5), xlab = "Alpha", 
-     main = "Estimated alpha - Beta experiment",breaks=breaks_alpha)
-hist(subset(par,condition=="plus"&manip=="beta")$alpha,add=T, col = rgb(0,0,1,.5),breaks=breaks_alpha)
-legend("topright",bty = "n",fill = c(rgb(0,0,1,.5),rgb(1,0,0,.5)),legend = c("Minus","Plus"))
-dev.off()
-
-# Beta
-jpeg("Beta_hist_exp2a.jpg",width=20,height=15,units='cm',res=300)
-hist(subset(par,condition=="minus"&manip=="alpha")$beta,col=rgb(1,0,0,.5), xlab = "Beta", 
-     main = "Estimated beta - Alpha experiment",breaks=breaks_beta)
-hist(subset(par,condition=="plus"&manip=="alpha")$beta,add=T, col = rgb(0,0,1,.5),breaks=breaks_beta)
-legend("topright",bty = "n",fill = c(rgb(0,0,1,.5),rgb(1,0,0,.5)),legend = c("Minus","Plus"))
-dev.off()
-
-jpeg("Beta_hist_exp2b.jpg",width=20,height=15,units='cm',res=300)
-hist(subset(par,condition=="minus"&manip=="beta")$beta,col=rgb(1,0,0,.5), xlab = "Beta", 
-     main = "Estimated beta - Beta experiment",breaks=breaks_beta)
-hist(subset(par,condition=="plus"&manip=="beta")$beta,add=T, col = rgb(0,0,1,.5),breaks=breaks_beta)
-legend("topright",bty = "n",fill = c(rgb(0,0,1,.5),rgb(1,0,0,.5)),legend = c("Minus","Plus"))
-dev.off()
-
-m <- lmer(data = par, alpha ~ condition*manip + (1|sub))
-anova(m)
-m <- lmer(data = par, beta ~ condition*manip + (1|sub))
-anova(m)
-
-m <- lmer(data = subset(par,manip=="alpha"), alpha ~ condition + (1|sub))
-anova(m)
-m <- lmer(data = subset(par,manip=="alpha"), beta ~ condition + (1|sub))
-anova(m)
-
-m <- lmer(data = subset(par,manip=="beta"), alpha ~ condition + (1|sub))
-anova(m)
-emm <- emmeans(m)
-m <- lmer(data = subset(par,manip=="beta"), beta ~ condition + (1|sub))
-anova(m)
 
 # Compute rolling mean per subject ----------------------------------------
 
@@ -496,11 +392,16 @@ pred_conf_sub_eta0 <- with(train,aggregate(cj_pred_eta0,by=list(condition,trial,
 names(pred_conf_sub_eta0) <- c("condition","trial","cor","sub","cj")
 pred_conf_sub_eta0 <- cast(pred_conf_sub_eta0, sub + cor + trial~condition)
 
+pred_conf_sub_per_sub <- with(train,aggregate(cj_pred_per_sub,by=list(condition,trial,cor,sub),mean))
+names(pred_conf_sub_per_sub) <- c("condition","trial","cor","sub","cj")
+pred_conf_sub_per_sub <- cast(pred_conf_sub_per_sub, sub + cor + trial~condition)
+
 trials <- data.frame(trial=rep(0:107,each=2),cor=c(0,1),sub=rep(subs,each=108*2))
 
 cj_ma <- merge(trial_conf_sub,trials,all=T)
 cj_pred_ma <- merge(pred_conf_sub,trials,all=T)
 cj_pred_ma_eta0 <- merge(pred_conf_sub_eta0,trials,all=T)
+cj_pred_ma_per_sub <- merge(pred_conf_sub_per_sub,trials,all=T)
 
 ma <- function(x,n,names){
   return(rollapply(x[,names], width=n, FUN=function(x) mean(x, na.rm=TRUE),partial=TRUE, align="center"))
@@ -512,6 +413,8 @@ for (s in subs) {
   cj_pred_ma[cj_pred_ma$sub==s&cj_pred_ma$cor==1,conditions] <- ma(subset(cj_pred_ma,sub==s&cor==1),n,conditions)
   cj_pred_ma_eta0[cj_pred_ma_eta0$sub==s&cj_pred_ma_eta0$cor==0,conditions] <- ma(subset(cj_pred_ma_eta0,sub==s&cor==0),n,conditions)
   cj_pred_ma_eta0[cj_pred_ma_eta0$sub==s&cj_pred_ma_eta0$cor==1,conditions] <- ma(subset(cj_pred_ma_eta0,sub==s&cor==1),n,conditions)
+  cj_pred_ma_per_sub[cj_pred_ma_per_sub$sub==s&cj_pred_ma_per_sub$cor==0,conditions] <- ma(subset(cj_pred_ma_per_sub,sub==s&cor==0),n,conditions)
+  cj_pred_ma_per_sub[cj_pred_ma_per_sub$sub==s&cj_pred_ma_per_sub$cor==1,conditions] <- ma(subset(cj_pred_ma_per_sub,sub==s&cor==1),n,conditions)
 }
 
 # Plot traces -------------------------------------------------------------
@@ -521,6 +424,8 @@ width <- 16 # Plot size expressed in cm
 height <- 10
 
 go_to("plots")
+go_to("eta")
+go_to("per_cond_wrong_err")
 # Plot Exp2A trace --------------------------------------------------------
 conf_min <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
 names(conf_min) <- c("trial","cor","cj")
@@ -818,23 +723,616 @@ polygon(c(1:xlen,xlen:1),c(pred_plus_cor + pred_plus_cor_se,(pred_plus_cor - pre
         border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
 dev.off()
 
-# Trace per sub --------------------------------------------------------
-go_to("trace_per_sub")
+# Plot traces fit per sub -------------------------------------------------------------
+se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
 
-for (s in subs) {
-  temp_ma <- subset(cj_ma,sub==s&cor==1)
-  temp_pred_ma <- subset(cj_pred_ma,sub==s&cor==1)
-  
-  jpeg(paste0("trace_",s,".jpg"),width=width,height=height,units = 'cm',res=300)
-  plot(temp_ma$plus,type='l',col='red',ylim=c(.5,1),
-       main= paste("Confidence in correct trials, sub",s),
-       xlab = "Trial", ylab = "Confidence")
-  lines(temp_ma$minus,col='blue')
-  lines(temp_pred_ma$plus,col="orange")
-  lines(temp_pred_ma$minus,col="lightblue")
-  dev.off()
-}
-setwd("..")
+width <- 16 # Plot size expressed in cm
+height <- 10
+
+go_to("per_sub")
+# Plot Exp2A trace --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Alpha_data.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),
+     main= paste("Alpha empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+# Plot Exp2A prediction ---------------------------------------------------
+conf_min <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Alpha_pred.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),
+     main= paste("Alpha predicted confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+
+# Plot Exp2A overlap prediction --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+
+pred_min <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(pred_min) <- c("trial","cor","cj")
+pred_min_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(pred_min_se) <- c("trial","cor","cj")
+pred_plus <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(pred_plus) <- c("trial","cor","cj")
+pred_plus_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(pred_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(pred_plus)[1]/2
+pred_min_err <- subset(pred_min,cor==0)$cj
+pred_min_err_se <- subset(pred_min_se,cor==0)$cj
+pred_min_cor <- subset(pred_min,cor==1)$cj
+pred_min_cor_se <- subset(pred_min_se,cor==1)$cj
+pred_plus_err <- subset(pred_plus,cor==0)$cj
+pred_plus_err_se <- subset(pred_plus_se,cor==0)$cj
+pred_plus_cor <- subset(pred_plus,cor==1)$cj
+pred_plus_cor_se <- subset(pred_plus_se,cor==1)$cj
+
+
+jpeg("alpha_overlap_err.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.75),     
+     main= paste("alpha empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_err,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_err + pred_min_err_se,(pred_min_err - pred_min_err_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_err,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_err + pred_plus_err_se,(pred_plus_err - pred_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+
+jpeg("alpha_overlap_cor.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_cor,type='l',col='blue',ylim=c(.7,.9),     
+     main= paste("alpha empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_cor,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_cor + pred_min_cor_se,(pred_min_cor - pred_min_cor_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_cor,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_cor + pred_plus_cor_se,(pred_plus_cor - pred_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+# Plot Exp2B trace --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Beta_data.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),     
+     main= paste("Beta empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+# Plot Exp2B prediction ---------------------------------------------------
+conf_min <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Beta_pred.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),     
+     main= paste("Beta predicted confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+# Plot Exp2B overlap prediction --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+
+pred_min <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(pred_min) <- c("trial","cor","cj")
+pred_min_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(pred_min_se) <- c("trial","cor","cj")
+pred_plus <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(pred_plus) <- c("trial","cor","cj")
+pred_plus_se <- with(subset(cj_pred_ma_per_sub,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(pred_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(pred_plus)[1]/2
+pred_min_err <- subset(pred_min,cor==0)$cj
+pred_min_err_se <- subset(pred_min_se,cor==0)$cj
+pred_min_cor <- subset(pred_min,cor==1)$cj
+pred_min_cor_se <- subset(pred_min_se,cor==1)$cj
+pred_plus_err <- subset(pred_plus,cor==0)$cj
+pred_plus_err_se <- subset(pred_plus_se,cor==0)$cj
+pred_plus_cor <- subset(pred_plus,cor==1)$cj
+pred_plus_cor_se <- subset(pred_plus_se,cor==1)$cj
+
+
+jpeg("Beta_overlap_err.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.75),     
+     main= paste("Beta empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_err,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_err + pred_min_err_se,(pred_min_err - pred_min_err_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_err,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_err + pred_plus_err_se,(pred_plus_err - pred_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+
+jpeg("Beta_overlap_cor.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_cor,type='l',col='blue',ylim=c(.7,.9),     
+     main= paste("Beta empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_cor,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_cor + pred_min_cor_se,(pred_min_cor - pred_min_cor_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_cor,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_cor + pred_plus_cor_se,(pred_plus_cor - pred_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+
+# Plot traces fit ab -------------------------------------------------------------
+se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
+
+width <- 16 # Plot size expressed in cm
+height <- 10
+
+go_to("eta0")
+# Plot Exp2A trace --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Alpha_data.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),
+     main= paste("Alpha empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+# Plot Exp2A prediction ---------------------------------------------------
+conf_min <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Alpha_pred.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),
+     main= paste("Alpha predicted confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+
+# Plot Exp2A overlap prediction --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+
+pred_min <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(pred_min) <- c("trial","cor","cj")
+pred_min_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(pred_min_se) <- c("trial","cor","cj")
+pred_plus <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(pred_plus) <- c("trial","cor","cj")
+pred_plus_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_alpha$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(pred_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(pred_plus)[1]/2
+pred_min_err <- subset(pred_min,cor==0)$cj
+pred_min_err_se <- subset(pred_min_se,cor==0)$cj
+pred_min_cor <- subset(pred_min,cor==1)$cj
+pred_min_cor_se <- subset(pred_min_se,cor==1)$cj
+pred_plus_err <- subset(pred_plus,cor==0)$cj
+pred_plus_err_se <- subset(pred_plus_se,cor==0)$cj
+pred_plus_cor <- subset(pred_plus,cor==1)$cj
+pred_plus_cor_se <- subset(pred_plus_se,cor==1)$cj
+
+
+jpeg("alpha_overlap_err.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.75),     
+     main= paste("alpha empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_err,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_err + pred_min_err_se,(pred_min_err - pred_min_err_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_err,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_err + pred_plus_err_se,(pred_plus_err - pred_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+
+jpeg("alpha_overlap_cor.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_cor,type='l',col='blue',ylim=c(.7,.9),     
+     main= paste("alpha empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_cor,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_cor + pred_min_cor_se,(pred_min_cor - pred_min_cor_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_cor,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_cor + pred_plus_cor_se,(pred_plus_cor - pred_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+# Plot Exp2B trace --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Beta_data.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),     
+     main= paste("Beta empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+# Plot Exp2B prediction ---------------------------------------------------
+conf_min <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+jpeg("Beta_pred.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.9),     
+     main= paste("Beta predicted confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_min_cor,col='blue')
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+dev.off()
+# Plot Exp2B overlap prediction --------------------------------------------------------
+conf_min <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+
+pred_min <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),mean,na.rm=T))
+names(pred_min) <- c("trial","cor","cj")
+pred_min_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(minus, by=list(trial,cor),se,na.rm=T))
+names(pred_min_se) <- c("trial","cor","cj")
+pred_plus <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),mean,na.rm=T))
+names(pred_plus) <- c("trial","cor","cj")
+pred_plus_se <- with(subset(cj_pred_ma_eta0,sub %in% unique(train_beta$sub)),aggregate(plus, by=list(trial,cor),se,na.rm=T))
+names(pred_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(pred_plus)[1]/2
+pred_min_err <- subset(pred_min,cor==0)$cj
+pred_min_err_se <- subset(pred_min_se,cor==0)$cj
+pred_min_cor <- subset(pred_min,cor==1)$cj
+pred_min_cor_se <- subset(pred_min_se,cor==1)$cj
+pred_plus_err <- subset(pred_plus,cor==0)$cj
+pred_plus_err_se <- subset(pred_plus_se,cor==0)$cj
+pred_plus_cor <- subset(pred_plus,cor==1)$cj
+pred_plus_cor_se <- subset(pred_plus_se,cor==1)$cj
+
+
+jpeg("Beta_overlap_err.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_err,type='l',col='blue',ylim=c(.5,.75),     
+     main= paste("Beta empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_err,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_err,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_err + pred_min_err_se,(pred_min_err - pred_min_err_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_err,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_err + pred_plus_err_se,(pred_plus_err - pred_plus_err_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+
+jpeg("Beta_overlap_cor.jpg",width=width,height=height,units = 'cm',res=300)
+plot(conf_min_cor,type='l',col='blue',ylim=c(.7,.9),     
+     main= paste("Beta empirical confidence, rollmean of ",n,"trials"),
+     xlab = "Trial", ylab = "Confidence")
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,0,255,51,maxColorValue = 255))
+lines(conf_plus_cor,col='red')
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255,0,0,51,maxColorValue = 255))
+lines(pred_min_cor,col='lightblue')
+polygon(c(1:xlen,xlen:1),c(pred_min_cor + pred_min_cor_se,(pred_min_cor - pred_min_cor_se)[xlen:1]),
+        border=F,col=rgb(173, 216, 230,51,maxColorValue = 255))
+lines(pred_plus_cor,col='orange')
+polygon(c(1:xlen,xlen:1),c(pred_plus_cor + pred_plus_cor_se,(pred_plus_cor - pred_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(255, 165, 0,51,maxColorValue = 255))
+dev.off()
+
+
 
 # Check DDM fit -----------------------------------------------------------
 rm(Simuls)
@@ -904,7 +1402,7 @@ ntrials=10;dt=.001;sigma=.1;Nupdate_per_trial=1000;estimate_evidence <- T
 confRTname="RTconf";diffname="difflevel";respname="resp";
 totRTname='rt2';targetname='cj';accname='cor';beta_input=.1;error_type='mse'
 obs <- temp_dat
-binning=FALSE;nbin=6
+binning=T;nbin=6
 params <- ldc.results$optim$bestmem[1]
 
 # # Old confidence trace plot ---------------------------------------------
@@ -968,3 +1466,22 @@ params <- ldc.results$optim$bestmem[1]
 # # lines(ma(subset(pred_conf_beta,cor==0)$plus,n),type = 'l', col = "orange",lty=2)
 # legend('topleft',legend=c("minus","plus"),lty=c(1,1),col=c('blue','red'),bty='n')
 # 
+
+# Trace per sub --------------------------------------------------------
+go_to("trace_per_sub")
+
+for (s in subs) {
+  temp_ma <- subset(cj_ma,sub==s&cor==1)
+  temp_pred_ma <- subset(cj_pred_ma,sub==s&cor==1)
+  
+  jpeg(paste0("trace_",s,".jpg"),width=width,height=height,units = 'cm',res=300)
+  plot(temp_ma$plus,type='l',col='red',ylim=c(.5,1),
+       main= paste("Confidence in correct trials, sub",s),
+       xlab = "Trial", ylab = "Confidence")
+  lines(temp_ma$minus,col='blue')
+  lines(temp_pred_ma$plus,col="orange")
+  lines(temp_pred_ma$minus,col="lightblue")
+  dev.off()
+}
+setwd("..")
+

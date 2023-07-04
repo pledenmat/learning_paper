@@ -368,11 +368,11 @@ ldc.nn.fit <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
   }
 }
 
-ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
+ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000,
                          Nupdate_per_trial=1000,returnFit=T,estimate_evidence = T,
                          confRTname="RTconf",diffname="difflevel",respname="resp",
                          totRTname='rt2',targetname='cj',accname='cor',beta_input=.1,
-                         error_type='mse',binning=F,nbin=6,shuffle=T,cost="per_trial"){
+                         error_type='mse',binning=F,nbin=6,shuffle=T,cost="per_trial",aggreg_pred="mean"){
   #' Step 1 : Use DDM bound and drift rate to infer evidence accumulated at each trial
   #' Step 2 : Gradiant descent 
   #' Step 3 : Global cost is DDM cost + NN cost
@@ -393,6 +393,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
     #' several times per trial and also to take into account the stochastic nature
     #' of estimating single trial evidence accumulation process 
     obs_nn <- obs[rep(seq_len(nrow(obs)), each=Nupdate_per_trial), ]
+    obs_err <- obs[rep(seq_len(nrow(obs)), each=Nsim_error), ]
     
     for (trial in seq(1,dim(obs_nn)[1],Nupdate_per_trial)) {
       #' Post decision drift rate sign depends on accuracy 
@@ -408,6 +409,21 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
                          time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
       }
     }
+    for (trial in seq(1,dim(obs_err)[1],Nsim_error)) {
+      #' Post decision drift rate sign depends on accuracy 
+      if (obs_err[trial,accname] %in% c(1,'correct','cor')) {
+        obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
+          obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
+          DDM_fixed_time(v = drift[difficulty==obs_err[trial,diffname]],
+                         time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+      }else if (obs_err[trial,accname] %in% c(-1,0,'error','err')) {
+        obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
+          obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
+          DDM_fixed_time(v = - drift[difficulty==obs_err[trial,diffname]],
+                         time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+      }
+    }
+    
   }else{
     obs_nn <- obs
     if (shuffle) {
@@ -421,6 +437,10 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
   x = matrix(c(obs_nn$evidence, #ev
                rep(beta_input,dim(obs_nn)[1]), #bias
                1/sqrt(obs_nn[,totRTname])),  ncol=3) #time
+
+  x_err = matrix(c(obs_err$evidence, #ev
+               rep(beta_input,dim(obs_err)[1]), #bias
+               1/sqrt(obs_err[,totRTname])),  ncol=3) #time
   
   #' Output (confidence)
   y = obs_nn[,targetname] 
@@ -430,7 +450,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
   
   results <- train_model(x,w,y,eta=params[4],error_type = error_type,trace=F,
                          binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
-                         cost=cost)
+                         cost=cost,x_err = x_err,Nsim_error=Nsim_error)
   
   if (returnFit) {
     return(results$err)
@@ -439,15 +459,48 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,
       obs_nn$cj_pred <- NA
     }
     results <- train_model(x,w,y,eta=params[4],error_type = error_type,trace=T,
-                           binning=binning,nbin=nbin)
+                           binning=binning,nbin=nbin,cost=cost)
+    if (Nupdate_per_trial==1) {
+      
+    }else{
+      
+    }
     trial_weight <- results$trace[seq(Nupdate_per_trial,dim(obs_nn)[1],Nupdate_per_trial),]
     for (trial in 1:dim(trial_weight)[1]) {
       obs_nn[(Nupdate_per_trial*(trial-1)+1):(Nupdate_per_trial*trial),"cj_pred"] <- 
-        combine_input(x[(Nupdate_per_trial*(trial-1)+1):(Nupdate_per_trial*trial),],
+        combine_input(matrix(x[(Nupdate_per_trial*(trial-1)+1):(Nupdate_per_trial*trial),],ncol=3),
                       c(trial_weight[trial,c(1,2)],1),binning=binning,nbin=nbin)
     }
     # obs_nn$cj_pred <- combine_input(x,results$w,binning=binning,nbin=nbin)
-    y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),mean))$x
+    if (aggreg_pred=="mean") {
+      y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),mean))$x
+    } else if (aggreg_pred=="mode"){
+      y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),Mode))$x
+    }
     return(y_pred)
+  }
+}
+
+ldc.fit <- function(params,ddm_params1,ddm_params2,obs1,obs2,dt=.001,sigma=0.1,
+                    Nupdate_per_trial=1000,returnFit=T,Nsim_error=Nsim_error,
+                    confRTname="RTconf",diffname="difflevel",respname="resp",
+                    totRTname='rt2',targetname='cj',accname='cor',beta_input=.1,
+                    error_type='mse',binning=F,nbin=6,cost='separated'){
+  fit1 <- ldc.nn.fit.w(params[1:4],obs1,ddm_params1,dt=dt,sigma=sigma,
+                       Nupdate_per_trial=Nupdate_per_trial,returnFit=returnFit,
+                       confRTname=confRTname,diffname=diffname,respname=respname,
+                       totRTname=totRTname,targetname=targetname,accname=accname,
+                       beta_input=beta_input,error_type=error_type,binning=binning,nbin=nbin,
+                       Nsim_error=Nsim_error,cost=cost)
+  fit2 <- ldc.nn.fit.w(params[5:8],obs2,ddm_params2,dt=dt,sigma=sigma,
+                       Nupdate_per_trial=Nupdate_per_trial,returnFit=returnFit,
+                       confRTname=confRTname,diffname=diffname,respname=respname,
+                       totRTname=totRTname,targetname=targetname,accname=accname,
+                       beta_input=beta_input,error_type=error_type,binning=binning,nbin=nbin,
+                       Nsim_err=Nsim_error,cost=cost)
+  if (returnFit) {
+    return(fit1 + fit2)
+  }else{
+    return(c(fit1,fit2))
   }
 }
