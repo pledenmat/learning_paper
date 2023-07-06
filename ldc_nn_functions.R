@@ -482,7 +482,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
 }
 
 ldc.fit <- function(params,ddm_params1,ddm_params2,obs1,obs2,dt=.001,sigma=0.1,
-                    Nupdate_per_trial=1000,returnFit=T,Nsim_error=Nsim_error,
+                    Nupdate_per_trial=1000,returnFit=T,Nsim_error=1000,
                     confRTname="RTconf",diffname="difflevel",respname="resp",
                     totRTname='rt2',targetname='cj',accname='cor',beta_input=.1,
                     error_type='mse',binning=F,nbin=6,cost='separated'){

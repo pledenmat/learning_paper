@@ -160,7 +160,9 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
       }
     }
   }
-  err/= ntrain/Nupdate_per_trial;
+  if (cost != "separated"){
+    err/= ntrain/Nupdate_per_trial;
+  }
   if (trace) {
     List results = List::create(Named("w") = w , _["err"] = err, _["trace"] = dat_iter);
     return results;

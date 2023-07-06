@@ -10,6 +10,7 @@ library(reshape)
 library(zoo) # rollapply
 library(timeSeries)
 library(colorBlindness)
+library(lmerTest)
 sourceCpp("ldc_train.cpp")
 # Load dataset --------------------------------------------------------
 
@@ -29,7 +30,7 @@ difflevels <- sort(unique(train$difflevel)) # Important to sort to match with dr
 
 # Fit dataset -------------------------------------------------------------
 beta_input <- .1
-Nupdate_per_trial <- 1
+Nupdate_per_trial <- 1000
 model <- "allpar"
 # bound, ter, z, vratio, drifts
 params_lower <- c(0,0,0,1,0,0,0)
@@ -466,7 +467,8 @@ count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y))
 count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
-plot(colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Alpha",bty='n')
+plot(colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",
+     ylab="Alpha",bty='n', ylim=c(3,16))
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
                                  colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
@@ -481,7 +483,8 @@ polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_plus,na.rm=T) +
 beta_trace <- with(subset(par_trace,sub %in% train_alpha$sub),aggregate(beta,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,condition=="minus"),sub~trial)
 beta_trace_plus <- cast(subset(beta_trace,condition=="plus"),sub~trial)
-plot(colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",bty='n')
+plot(colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",
+     ylab="Beta",bty='n',ylim=c(7,18))
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_minus,na.rm=T) + 
                                  colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
@@ -502,7 +505,7 @@ count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Alpha",
-     ylim=c(0,6),bty='n')
+     ylim=c(3,16),bty='n')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
                                  colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
@@ -518,7 +521,7 @@ beta_trace <- with(subset(par_trace,sub %in% train_beta$sub),aggregate(beta,by=l
 beta_trace_minus <- cast(subset(beta_trace,condition=="minus"),sub~trial)
 beta_trace_plus <- cast(subset(beta_trace,condition=="plus"),sub~trial)
 plot(colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(8,15),bty='n')
+     ylim=c(6,16),bty='n')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_minus,na.rm=T) + 
                                  colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
@@ -549,6 +552,17 @@ anova(m)
 emm <- emmeans::emmeans(m, ~ condition)
 pairs(emm)
 
+m <- lmer(data = par, a0 ~ condition*manip + (1|sub))
+anova(m)
+
+m <- lmer(data = subset(par,manip=="beta"), b0 ~ condition + (1|sub))
+anova(m)
+
+m <- lmer(data = par, eta ~ condition*manip + (1|sub))
+anova(m)
+
+m <- lmer(data = par, ter ~ condition*manip + (1|sub))
+anova(m)
 
 # Plot traces -------------------------------------------------------------
 se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
@@ -559,7 +573,10 @@ cex.lab <- 3
 cex.axis <- 2
 cex.legend <- 2
 go_to("plots")
-go_to("w0")
+go_to("allpar")
+go_to("eta_unbound")
+go_to("no_micro_update")
+go_to(paste0("batch_",Nupdate_per_trial))
 if (binning) {
   go_to("binning")
 }
@@ -745,7 +762,7 @@ count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-     ylim = c(0,6),bty='n')
+     ylim = c(3,16),bty='n')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
                                  colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
@@ -761,7 +778,7 @@ beta_trace <- with(subset(par_trace,sub %in% train_alpha$sub),aggregate(beta,by=
 beta_trace_minus <- cast(subset(beta_trace,condition=="minus"),sub~trial)
 beta_trace_plus <- cast(subset(beta_trace,condition=="plus"),sub~trial)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(10,16),bty='n')
+     ylim=c(6,18),bty='n')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_minus,na.rm=T) + 
                                  colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
@@ -782,7 +799,7 @@ count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-     ylim=c(0,6),bty='n')
+     ylim=c(3,16),bty='n')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
                                  colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
@@ -798,7 +815,7 @@ beta_trace <- with(subset(par_trace,sub %in% train_beta$sub),aggregate(beta,by=l
 beta_trace_minus <- cast(subset(beta_trace,condition=="minus"),sub~trial)
 beta_trace_plus <- cast(subset(beta_trace,condition=="plus"),sub~trial)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(8,15),bty='n')
+     ylim=c(6,16),bty='n')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_minus,na.rm=T) + 
                                  colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
@@ -811,3 +828,22 @@ polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_plus,na.rm=T) +
 
 dev.off()
 
+
+# Trace per sub --------------------------------------------------------
+go_to("trace_per_sub")
+
+for (s in subs) {
+  temp_ma <- subset(cj_ma,sub==s&cor==1)
+  temp_pred_ma <- subset(cj_pred_ma,sub==s&cor==1)
+  
+  jpeg(paste0("trace_",s,".jpg"),width=width,height=height,units = 'cm',res=300)
+  plot(temp_ma$plus,type='l',col=VERMILLION,ylim=c(.5,1),
+       main= paste("Confidence in correct trials, sub",s),
+       xlab = "Trial", ylab = "Confidence")
+  lines(temp_ma$minus,col=BLUE)
+  lines(temp_pred_ma$plus,col=VERMILLION,lty=2)
+  lines(temp_pred_ma$minus,col=BLUE,lty=2)
+  legend("bottomleft",horiz=T,lty=c(1,2),legend=c("Behaviour","Model"),bty='n')
+  dev.off()
+}
+setwd("..")
