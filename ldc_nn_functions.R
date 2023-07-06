@@ -1,70 +1,5 @@
-library(myPackage)
 library(Rcpp)
 sourceCpp("DDM_fixed_time.cpp")
-
-combine_input_R <- function(x,w){
-  if(is.vector(x)){
-    y_j <- as.numeric(x[3]*w[3]*(x[c(1,2)] %*% w[c(1,2)]))
-  }else{
-    y_j <- as.numeric(x[,3]*w[3]*(x[,c(1,2)] %*% w[c(1,2)]))
-  }
-  pred_j <- 1/(1+exp(-y_j))
-  return(pred_j)
-}
-error_R <- function(y,y_pred,type='cross-entropy'){
-  if (type=='cross-entropy') {
-    return(- sum( (1 - y)*log(1 - y_pred) + y*log(y_pred))/length(y))
-  }else if (tolower(type)=='mse') {
-    return(sum((y - y_pred)^2)/2/length(y))
-  }
-}
-grad_R <- function(x,y,y_pred,error_type='cross-entropy'){
-  if (error_type=='cross-entropy') {
-    return((y - y_pred)*x[,c(1,2)]/sqrt(x[,3]))
-    
-  }else if (tolower(error_type)=='mse') {
-    return(y_pred*(1-y_pred)*(y - y_pred)*x[,c(1,2)]/sqrt(x[,3]))
-  }
-}
-
-train_model_R <- function(x,w,y,eta=.1,error_type='cross-entropy',
-                        th=0.0000001,verbose=F,trace=F){
-  #' Add a check that x,w and y dimensions are compatible
-  ntrain <- length(y)
-  dat_iter <- data.frame(alpha = rep(NA,Nupdate_per_trial*ntrain),
-                         beta = rep(NA,Nupdate_per_trial*ntrain),
-                         err = rep(NA,Nupdate_per_trial*ntrain)) 
-  
-  for (j in 1:ntrain){
-    pred_j <- combine_input_R(x[j,],w)
-    
-    # Update weights (time is fixed)
-    w[c(1,2)] = w[c(1,2)] + eta*grad_R(matrix(x[j,],ncol=3),y[j],pred_j,error_type=error_type)
-    
-    if (verbose == T){
-      print(paste('  -> updating data point ', j, ' : '))
-      print(paste('     -> alpha: ' ,w[1]))
-      print(paste('     -> beta: ' ,w[2]))
-    }
-    if (trace) {
-      y_pred <- combine_input_R(x,w)
-      y_pred[y_pred==1] <- .9999999 # Avoid log(0)
-      y_pred[y_pred==0] <- .0000001
-      err = error_R(y,y_pred,type=error_type)
-      dat_iter[j,"alpha"] <- w[1]
-      dat_iter[j,"beta"] <- w[2]
-      dat_iter[j,"err"] <- err
-    }
-  }
-  
-  y_pred <- combine_input_R(x,w)
-  y_pred[y_pred==1] <- .9999999 # Avoid log(0)
-  y_pred[y_pred==0] <- .0000001
-  err = error_R(y,y_pred,type=error_type)
-  results <- list(w=w,err=err,param_iter=dat_iter)
-  return(results)
-}
-
 
 ldc.nn.fit.all <- function(params,obs,ntrials=10,dt=.001,sigma=.1,Nupdate_per_trial=1000,w0=c(10,-1,1),
                        confRTname="RTconf",diffname="difflevel",respname="resp",
@@ -372,7 +307,8 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
                          Nupdate_per_trial=1000,returnFit=T,estimate_evidence = T,
                          confRTname="RTconf",diffname="difflevel",respname="resp",
                          totRTname='rt2',targetname='cj',accname='cor',beta_input=.1,
-                         error_type='mse',binning=F,nbin=6,shuffle=T,cost="per_trial",aggreg_pred="mean"){
+                         error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
+                         shuffle=T,cost="separated",aggreg_pred="mean"){
   #' Step 1 : Use DDM bound and drift rate to infer evidence accumulated at each trial
   #' Step 2 : Gradiant descent 
   #' Step 3 : Global cost is DDM cost + NN cost
@@ -448,9 +384,10 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
   #' Initialize weights
   w <- params[1:3]
   
-  results <- train_model(x,w,y,eta=params[4],error_type = error_type,trace=F,
+  results <- train_model(x,w,y,eta=params[4],error_type1 = error_type1,trace=F,
                          binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
-                         cost=cost,x_err = x_err,Nsim_error=Nsim_error)
+                         cost=cost,x_err = x_err,Nsim_error=Nsim_error,
+                         error_type2 = error_type2)
   
   if (returnFit) {
     return(results$err)
@@ -485,19 +422,20 @@ ldc.fit <- function(params,ddm_params1,ddm_params2,obs1,obs2,dt=.001,sigma=0.1,
                     Nupdate_per_trial=1000,returnFit=T,Nsim_error=1000,
                     confRTname="RTconf",diffname="difflevel",respname="resp",
                     totRTname='rt2',targetname='cj',accname='cor',beta_input=.1,
-                    error_type='mse',binning=F,nbin=6,cost='separated'){
+                    error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
+                    cost='separated'){
   fit1 <- ldc.nn.fit.w(params[1:4],obs1,ddm_params1,dt=dt,sigma=sigma,
                        Nupdate_per_trial=Nupdate_per_trial,returnFit=returnFit,
                        confRTname=confRTname,diffname=diffname,respname=respname,
                        totRTname=totRTname,targetname=targetname,accname=accname,
-                       beta_input=beta_input,error_type=error_type,binning=binning,nbin=nbin,
-                       Nsim_error=Nsim_error,cost=cost)
+                       beta_input=beta_input,error_type1=error_type1,binning=binning,nbin=nbin,
+                       Nsim_error=Nsim_error,cost=cost,error_type2=error_type2)
   fit2 <- ldc.nn.fit.w(params[5:8],obs2,ddm_params2,dt=dt,sigma=sigma,
                        Nupdate_per_trial=Nupdate_per_trial,returnFit=returnFit,
                        confRTname=confRTname,diffname=diffname,respname=respname,
                        totRTname=totRTname,targetname=targetname,accname=accname,
-                       beta_input=beta_input,error_type=error_type,binning=binning,nbin=nbin,
-                       Nsim_err=Nsim_error,cost=cost)
+                       beta_input=beta_input,error_type1=error_type1,binning=binning,nbin=nbin,
+                       Nsim_err=Nsim_error,cost=cost,error_type2=error_type2)
   if (returnFit) {
     return(fit1 + fit2)
   }else{

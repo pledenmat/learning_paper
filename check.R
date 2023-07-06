@@ -28,6 +28,7 @@ train$cj_pred_eta0 <- -99
 train$cj_pred_per_sub <- -99
 train$cj_lab <- train$cj
 train$cj <- train$cj/6
+train$fb <- train$fb/100
 binning <- F
 subs <- unique(train$sub)
 conditions <- sort(unique(train$condition))
@@ -35,19 +36,22 @@ difflevels <- sort(unique(train$difflevel)) # Important to sort to match with dr
 
 
 # Take example subj dataset -----------------------------------------------
-etas <- c(0,1,2,5,10,50,100,1000)
+# confRTname="RTconf";diffname="difflevel";respname="resp";
+# totRTname='rt2';targetname='fb';accname='cor';beta_input=.1;error_type1='cross-entropy'
+# error_type2='mse'
+# Nupdate_per_trial <- 1
+# Nsim_error <- 1000
+# binning <- F; nbin <- 6
+# sigma <- .1
+# dt <- .001
+
+etas <- c(0,1,2,5,10,50,100,1000,1500,2000,5000,10000,20000,50000,100000)
 res_tot <- matrix(NA,nrow = length(subs),ncol = length(etas))
 for (subject in 1:length(subs)) {
   s <- subs[subject]
   print(paste("inspecting sub",s))
   obs <- subset(train, sub==s & condition == "plus")
-  confRTname="RTconf";diffname="difflevel";respname="resp";
-  totRTname='rt2';targetname='cj';accname='cor';beta_input=.1;error_type='mse'
-  Nupdate_per_trial <- 1000
-  Nsim_error <- 1000
-  binning <- F; nbin <- 6
-  sigma <- .1
-  dt <- .001
+
   
   go_to("fit")
   ddm_file1 <- paste0('ddm/ddmfit_',s,'_plus.Rdata')
@@ -67,7 +71,7 @@ for (subject in 1:length(subs)) {
     ddm_params1 <- ddm_params1*10
   }
   
-  ldc_file <- paste0('allpar/eta_unbound/no_micro_update/batch_1000/ldcfit_',s,'.Rdata')
+  ldc_file <- paste0('allpar/eta_unbound/no_micro_update/batch_1/ldcfit_',s,'.Rdata')
   if (file.exists(ldc_file)) {
     load(ldc_file)
   }else{
@@ -132,24 +136,6 @@ for (subject in 1:length(subs)) {
     }
   }
   
-  
-  #' Nupdate_1000 <- 1000
-  #' obs_nn_1000 <- obs[rep(seq_len(nrow(obs)), each=Nupdate_1000), ]
-  #' 
-  #' for (trial in seq(1,dim(obs_nn_1000)[1],Nupdate_1000)) {
-  #'   #' Post decision drift rate sign depends on accuracy 
-  #'   if (obs_nn_1000[trial,accname] %in% c(1,'correct','cor')) {
-  #'     obs_nn_1000[trial:(trial+Nupdate_1000-1),'evidence'] <- 
-  #'       obs_nn_1000[trial:(trial+Nupdate_1000-1),'evidence'] + 
-  #'       DDM_fixed_time(v = drift[difficulty==obs_nn_1000[trial,diffname]],
-  #'                      time=obs_nn_1000[trial,confRTname],ntrials=Nupdate_1000,s=sigma,dt=dt)[,1]
-  #'   }else if (obs_nn_1000[trial,accname] %in% c(-1,0,'error','err')) {
-  #'     obs_nn_1000[trial:(trial+Nupdate_1000-1),'evidence'] <- 
-  #'       obs_nn_1000[trial:(trial+Nupdate_1000-1),'evidence'] + 
-  #'       DDM_fixed_time(v = - drift[difficulty==obs_nn_1000[trial,diffname]],
-  #'                      time=obs_nn_1000[trial,confRTname],ntrials=Nupdate_1000,s=sigma,dt=dt)[,1]
-  #'   }
-  #' }
   # Train -------------------------------------------------------------------
   fac <- 1
   #' Input data (evidence and intercept)
@@ -178,17 +164,19 @@ for (subject in 1:length(subs)) {
   # res1000 <- c()
   # res_mean1000 <- c()
   # res_mode1000 <- c()
-  w <- c(13,-10,1)
+  w <- c(10,0,1)
   etas10 <- c(0,1,10,100,1000,10000,100000,1000000)
   for (i in etas) {
-    results <- train_model(x,w,y,eta=i,error_type = error_type,trace=F,cost="separated",
+    results <- train_model(x,w,y,eta=i,error_type1 = error_type1,trace=F,cost="separated",
                            binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
-                           x_err = x_err, Nsim_error = Nsim_error)
+                           x_err = x_err, Nsim_error = Nsim_error,error_type2 = error_type2)
     res <- c(res,results$err)
   }
   res_tot[subject,] <- res
 }
 
+# Check better learning rate
+table(apply(res_tot,1,which.min))
 
 # Plot difference between learning rates ----------------------------------
 

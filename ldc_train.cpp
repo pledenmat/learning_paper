@@ -33,7 +33,7 @@ double error(NumericVector y, NumericVector y_pred, String error_type){
   int n = y.length();
   if (error_type == "cross-entropy") {
     for (int i = 0; i < n; i++) {
-      err -= y[i] * log(y_pred[i]) + (1 - y[i]) * log(1 - y_pred[i]);
+      err -= y[i] * log(y_pred[i]);
     }
     err /= n;
   } else if (error_type == "mse") {
@@ -93,10 +93,11 @@ NumericVector combine_input(NumericMatrix x, NumericVector w, bool binning = fal
 // Define main function to train the model
 // [[Rcpp::export]]
 List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta = 0.1,
-                 std::string error_type = "cross-entropy", int Nupdate_per_trial = 1000,
+                 std::string error_type1 = "cross-entropy", int Nupdate_per_trial = 1000,
                  bool verbose = false, bool trace = false, bool binning = false, 
                  int nbin = 6.0, std::string cost = "per_trial",
-                 NumericMatrix x_err = NumericMatrix(), int Nsim_error = 1000) {
+                 NumericMatrix x_err = NumericMatrix(), int Nsim_error = 1000,
+                 std::string error_type2 = "mse") {
   int ntrain = y.size();
   double err = 0;
   NumericVector w = clone(w0);
@@ -105,7 +106,7 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
   for (int j = 0; j < ntrain; j++) {
     double pred_j = combine_input_1trial(x(j, _), w, binning = binning, nbin = nbin);
     // Update weights (time gradient is fixed to 0)
-    NumericVector g = grad(x(j, _), y[j], pred_j, error_type);
+    NumericVector g = grad(x(j, _), y[j], pred_j, error_type1);
     w[0] += eta * g[0];
     w[1] += eta * g[1];
     w[2] += eta * g[2];
@@ -126,35 +127,35 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
     if (j % Nupdate_per_trial == 0){
       if (cost == "next_trial"){
         NumericVector y_pred = combine_input(x(Range(j,j+Nupdate_per_trial-1), _), w, binning = binning, nbin = nbin);
-        err += error(y[Range(j,j+Nupdate_per_trial-1)], y_pred, error_type);
+        err += error(y[Range(j,j+Nupdate_per_trial-1)], y_pred, error_type2);
       } else if (cost == "separated") {
         if (Nupdate_per_trial == 1){
           NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
           double y_pred_mean = mean(y_pred);
-          err += error(wrap(y[j]), wrap(y_pred_mean), error_type);
+          err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
         }
       }
     } else {
       if ((j+1) % Nupdate_per_trial == 0) {
         if (cost == "per_trial") {
           NumericVector y_pred = combine_input(x(Range(j-Nupdate_per_trial+1,j), _), w, binning = binning, nbin = nbin);
-          err += error(y[Range(j-Nupdate_per_trial+1,j)], y_pred, error_type);
+          err += error(y[Range(j-Nupdate_per_trial+1,j)], y_pred, error_type2);
         } else if (cost == "per_trial_mean") {
           NumericVector y_pred = combine_input(x(Range(j-Nupdate_per_trial+1,j), _), w, binning = binning, nbin = nbin);
           double y_pred_mean = mean(y_pred);
-          err += error(wrap(y[j]), wrap(y_pred_mean), error_type);
+          err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
         } else if (cost == "per_trial_mode") {
           NumericVector y_pred = combine_input(x(Range(j-Nupdate_per_trial+1,j), _), w, binning = binning, nbin = nbin);
           double y_pred_mode = Mode(y_pred);
-          err += error(wrap(y[j]), wrap(y_pred_mode), error_type);
+          err += error(wrap(y[j]), wrap(y_pred_mode), error_type2);
         } else if (cost == "integrate") {
           NumericVector y_pred = combine_input(x(Range(0,j), _), w, binning = binning, nbin = nbin);
-          err += error(y[Range(0,j)], y_pred, error_type);
+          err += error(y[Range(0,j)], y_pred, error_type2);
         } else if (cost == "separated") {
           if (Nupdate_per_trial > 1){
             NumericVector y_pred = combine_input(x_err(Range(((j+1)/Nupdate_per_trial - 1)*Nsim_error,((j+1)/Nupdate_per_trial)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
             double y_pred_mean = mean(y_pred);
-            err += error(wrap(y[j]), wrap(y_pred_mean), error_type);
+            err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
           }
         } 
       }
@@ -162,6 +163,8 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
   }
   if (cost != "separated"){
     err/= ntrain/Nupdate_per_trial;
+  } else{
+    err/= ntrain;
   }
   if (trace) {
     List results = List::create(Named("w") = w , _["err"] = err, _["trace"] = dat_iter);
