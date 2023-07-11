@@ -395,13 +395,10 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     if (!("cj_pred" %in% names(obs_nn))) {
       obs_nn$cj_pred <- NA
     }
-    results <- train_model(x,w,y,eta=params[4],error_type = error_type,trace=T,
-                           binning=binning,nbin=nbin,cost=cost)
-    if (Nupdate_per_trial==1) {
-      
-    }else{
-      
-    }
+    results <- train_model(x,w,y,eta=params[4],error_type1 = error_type1,trace=T,
+                           Nupdate_per_trial = Nupdate_per_trial,binning=binning,
+                           nbin=nbin,cost=cost,error_type2 = error_type2,x_err=x_err)
+    
     trial_weight <- results$trace[seq(Nupdate_per_trial,dim(obs_nn)[1],Nupdate_per_trial),]
     for (trial in 1:dim(trial_weight)[1]) {
       obs_nn[(Nupdate_per_trial*(trial-1)+1):(Nupdate_per_trial*trial),"cj_pred"] <- 
@@ -414,7 +411,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     } else if (aggreg_pred=="mode"){
       y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),Mode))$x
     }
-    return(y_pred)
+    return(list(pred=y_pred,trace=trial_weight))
   }
 }
 

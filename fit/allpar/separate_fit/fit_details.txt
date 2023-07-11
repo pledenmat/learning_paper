@@ -1,0 +1,2 @@
+Feedback was put as target in delta rule
+cross-entropy error function for update rule

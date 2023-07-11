@@ -123,6 +123,11 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
       dat_iter(j, 0) = w[0];
       dat_iter(j, 1) = w[1];
       //dat_iter(j, 2) = err;
+      //if (Nupdate_per_trial == 1){
+        //NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
+        //double y_pred_mean = mean(y_pred);
+        //dat_iter(j, 2) = y_pred_mean;
+      //}
     }
     if (j % Nupdate_per_trial == 0){
       if (cost == "next_trial"){
