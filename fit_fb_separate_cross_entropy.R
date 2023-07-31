@@ -12,7 +12,7 @@ library(timeSeries)
 library(colorBlindness)
 library(lmerTest)
 sourceCpp("ldc_train.cpp")
-# Load dataset --------------------------------------------------------
+# Load data <- t --------------------------------------------------------
 
 train_alpha <- read.csv("train_alpha.csv")
 train_beta <- read.csv("train_beta.csv")

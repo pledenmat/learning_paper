@@ -1,0 +1,4 @@
+﻿trial,withinphasetrial,withinblocktrial,block,phase,dotsLeft,dotsRight,rt,resp,cor,cresp,conf_press,cj,RTconf,ev,fb,diff,difflevel,condition,task,manip,sub,age,gender,handedness,
+0,0,0,0,0,27,53,2252,['n'],1,right,['1'],6,179,[-0.10596019],100,53,easy,plus,dotcolour,alfa,0,0,V,R,
+1,1,1,0,0,36,44,534,['n'],1,right,['2'],5,151,[-0.0755893],100,44,hard,plus,dotcolour,alfa,0,0,V,R,
+2,2,2,0,0,53,27,282,['n'],0,left,['9'],2,159,[-0.02929832],93,53,easy,plus,dotcolour,alfa,0,0,V,R,
