@@ -82,7 +82,7 @@ for (s in subs) {
     par[par$sub==s&par$condition==cond&par$difflevel==difflevels[3],"drift"] <- ddm.results$optim$bestmem[7]
     par[par$sub==s&par$condition==cond,"cost_ddm"] <- ddm.results$optim$bestval
     
-    ldc_file <- paste0('allpar/separate_fit/batch_',Nupdate_per_trial,'/ldcfit_',s,'_',cond,'.Rdata')
+    ldc_file <- paste0('allpar/separate_fit/skip_10/batch_',Nupdate_per_trial,'/ldcfit_',s,'_',cond,'.Rdata')
     if (file.exists(ldc_file)) {
       load(ldc_file)
     }else{
@@ -829,3 +829,19 @@ polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_plus,na.rm=T) +
 
 
 
+
+m <- lmer(data = par_tot, a0 ~ skip + (1|sub))
+anova(m)
+with(par_tot,aggregate(a0,by=list(skip),mean))
+
+m <- lmer(data = par_tot, b0 ~ skip + (1|sub))
+anova(m)
+with(par_tot,aggregate(b0,by=list(skip),mean))
+
+m <- lmer(data = par_tot, eta ~ skip + (1|sub))
+anova(m)
+with(par_tot,aggregate(eta,by=list(skip),mean))
+
+hist(par_old$a0 - par$a0)
+hist(par_old$b0 - par$b0)
+hist(par_old$eta - par$eta)

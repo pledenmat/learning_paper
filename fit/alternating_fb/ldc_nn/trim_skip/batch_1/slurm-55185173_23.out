@@ -1,0 +1,133 @@
+SLURM_JOB_ID: 55185196
+SLURM_JOB_USER: vsc34066
+SLURM_JOB_ACCOUNT: lp_desenderlab
+SLURM_JOB_NAME: fit_alternating_fb_trim_skip.slurm
+SLURM_CLUSTER_NAME: genius
+SLURM_JOB_PARTITION: batch
+SLURM_ARRAY_JOB_ID: 55185173
+SLURM_ARRAY_TASK_ID: 23
+SLURM_NNODES: 1
+SLURM_NODELIST: r22i27n11
+SLURM_JOB_CPUS_PER_NODE: 8
+Date: Tue Aug  8 11:36:21 CEST 2023
+Walltime: 00-23:59:00
+========================================================================
+Iteration: 1 bestvalit: 0.031080 bestmemit:   27.528288   76.083932    1.000000  543.466711
+Iteration: 2 bestvalit: 0.017011 bestmemit:   17.867715  -92.558871    1.000000   95.345165
+Iteration: 3 bestvalit: 0.017011 bestmemit:   17.867715  -92.558871    1.000000   95.345165
+Iteration: 4 bestvalit: 0.014151 bestmemit:   16.647609  -83.589128    1.000000   94.520066
+Iteration: 5 bestvalit: 0.014151 bestmemit:   16.647609  -83.589128    1.000000   94.520066
+Iteration: 6 bestvalit: 0.014151 bestmemit:   16.647609  -83.589128    1.000000   94.520066
+Iteration: 7 bestvalit: 0.014151 bestmemit:   16.647609  -83.589128    1.000000   94.520066
+Iteration: 8 bestvalit: 0.014045 bestmemit:    3.037308  -69.150829    1.000000   60.546157
+Iteration: 9 bestvalit: 0.013986 bestmemit:   34.467647  -62.442487    1.000000   60.546157
+Iteration: 10 bestvalit: 0.012864 bestmemit:    6.970374  -11.131562    1.000000  117.504710
+Iteration: 11 bestvalit: 0.012864 bestmemit:    6.970374  -11.131562    1.000000  117.504710
+Iteration: 12 bestvalit: 0.012864 bestmemit:    6.970374  -11.131562    1.000000  117.504710
+Iteration: 13 bestvalit: 0.012864 bestmemit:    6.970374  -11.131562    1.000000  117.504710
+Iteration: 14 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 15 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 16 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 17 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 18 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 19 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 20 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 21 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 22 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 23 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 24 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 25 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 26 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 27 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 28 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 29 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 30 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 31 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 32 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 33 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 34 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 35 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 36 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 37 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 38 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 39 bestvalit: 0.011571 bestmemit:   20.286137   -3.236251    1.000000   82.414744
+Iteration: 40 bestvalit: 0.011513 bestmemit:   21.715825   19.385502    1.000000   63.752524
+Iteration: 41 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 42 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 43 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 44 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 45 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 46 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 47 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 48 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 49 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 50 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 51 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 52 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 53 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 54 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 55 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 56 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 57 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 58 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 59 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 60 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 61 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 62 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 63 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 64 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 65 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 66 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 67 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 68 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 69 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 70 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 71 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 72 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 73 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 74 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 75 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 76 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 77 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 78 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 79 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 80 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 81 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 82 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 83 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 84 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 85 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 86 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 87 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 88 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 89 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 90 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 91 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 92 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 93 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 94 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 95 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 96 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 97 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 98 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 99 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 100 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 101 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 102 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 103 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 104 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 105 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 106 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 107 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 108 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 109 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 110 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 111 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+Iteration: 112 bestvalit: 0.010387 bestmemit:   34.625577   -4.973503    1.000000   89.263953
+
+***** summary of DEoptim object ***** 
+best member   :  34.62558 -4.9735 1 89.26395 
+best value    :  0.01039 
+after         :  112 generations 
+fn evaluated  :  226 times 
+*************************************

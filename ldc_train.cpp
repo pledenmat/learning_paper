@@ -203,7 +203,7 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, dou
     NumericVector g = grad(x(j, _), y[j], pred_j, error_type1);
     w[0] += eta_a * g[0];
     w[1] += eta_b * g[1];
-    w[2] += eta * g[2];
+    w[2] += 0 * g[2];
     
     if (verbose) {
       Rcout << "  -> updating data point " << j + 1 << " :\n";
