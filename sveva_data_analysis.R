@@ -11,9 +11,9 @@ library(timeSeries) #ColSdS
 library(car)
 library(zoo) # rollapply
 library(colorBlindness)
+library(scales)
 sourceCpp("ldc_train.cpp")
 source("ldc_nn_functions.R")
-
 plots <- F
 stat_tests <- F
 
@@ -125,8 +125,10 @@ minus_first <- unique(subset(Data,phase==0&condition=='minus')$sub)
 Data[Data$sub %in% minus_first,"group"] <- "minus_first"
 
 # setwd(curdir)
+Nskip <- 5
 Data_trim <- subset(Data,RTconf<5 & rt<5 & rt>.2)
-Data_trim <- subset(Data,RTconf<5 & rt<5 & rt>.2 & trial>4)
+Data_trim <- subset(Data,RTconf<5 & rt<5 & rt>.2 & trial>=Nskip)
+Ntrials <- Ntrials - Nskip # Because we now skip the first 5 trials
 # write.csv(Data_trim,file = "alternating_fb_mod_trim_skip.csv",row.names = F)
 # 
 # Data <- read.csv("alternating_fb_mod.csv")
@@ -136,6 +138,7 @@ Data <- Data_trim
 Nphase_trial <- length(unique(Data$withinphasetrial))
 Nphase_block <- 4
 Data$phase_block <-  Data$withinphasetrial %/% (Nphase_trial/Nphase_block)
+Data$phase_block <- as.factor(Data$phase_block)
 
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
@@ -215,14 +218,15 @@ Nupdate_per_trial <- 1
 model <- "allpar"
 dt <- .001; sigma <- .1
 binning <- F
+Nsim <- 20
 
 conditions <- sort(unique(Data$condition))
 difflevels <- sort(unique(Data$difflevel)) # Important to sort to match with drift order
 
 ntrial <- Ntrials
-par_trace <- data.frame(trial=0:(ntrial-1),sub=rep(subs,each=ntrial*2),
+par_trace <- data.frame(trial=(0:(ntrial-1))+Nskip,sub=rep(subs,each=ntrial*2),
                         condition=rep(c("plus","minus"),each=ntrial),
-                        alpha=NA,beta=NA)
+                        alpha=0,beta=0)
 
 
 totlen <- length(conditions)*length(difflevels)*length(subs)
@@ -233,6 +237,14 @@ par <- data.frame(bound = NA, drift = NA, ter = NA, eta = NA,
                                   length.out=totlen),
                   difflevel = rep(difflevels, length.out = totlen),
                   manip=NA)
+
+# anal_sim <- Data[rep(seq_len(nrow(Data)), each=Nsim), c('trial','withinphasetrial','sub','condition','cor')]
+# anal_sim$alpha <- NA
+# anal_sim$beta <- NA
+# anal_sim$sim <- 1:Nsim
+
+Data$cj_pred <- 0
+
 go_to("fit")
 go_to("alternating_fb")
 for (s in 1:length(subs)) {
@@ -280,41 +292,64 @@ for (s in 1:length(subs)) {
   par[par$sub==subs[s],"eta"] <- ldc.results$optim$bestmem[4]
   par[par$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
   
-  results <-
-    ldc.nn.fit.w(params=c(mean(par[par$sub==subs[s],"a0"]),
-                          mean(par[par$sub==subs[s],"b0"]),1,
-                          mean(par[par$sub==subs[s],"eta"])),
-                 ddm_params = ddm_params,
-                 obs=temp_dat,returnFit = F,
-                 Nupdate_per_trial=Nupdate_per_trial, binning = binning,
-                 dt = dt, sigma = sigma)
-  Data[Data$sub==subs[s],'cj_pred'] <- results$pred
-
-  par_trace[par_trace$sub==subs[s],"alpha"] <-
-    c(results$trace[,1],
-      rep(NA,ntrial-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),1])))
-  par_trace[par_trace$sub==subs[s],"beta"] <-
-    c(results$trace[,2],
-      rep(NA,ntrial-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),2])))
-
-
+  if (file.exists("anal_sim.Rdata")|exists("anal_sim")) {
+    load("anal_sim.Rdata")
+  } else {
+    for (i in 1:Nsim) {
+      results <-
+        ldc.nn.fit.w(params=c(mean(par[par$sub==subs[s],"a0"]),
+                              mean(par[par$sub==subs[s],"b0"]),1,
+                              mean(par[par$sub==subs[s],"eta"])),
+                     ddm_params = ddm_params,
+                     obs=temp_dat,returnFit = F,
+                     Nupdate_per_trial=Nupdate_per_trial, binning = binning,
+                     dt = dt, sigma = sigma)
+      Data[Data$sub==subs[s],'cj_pred'] <- Data[Data$sub==subs[s],'cj_pred'] + results$pred
+      
+      par_trace[par_trace$sub==subs[s],"alpha"] <- par_trace[par_trace$sub==subs[s],"alpha"] +
+        c(results$trace[,1],
+          rep(NA,ntrial-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),1])))
+      par_trace[par_trace$sub==subs[s],"beta"] <- par_trace[par_trace$sub==subs[s],"beta"] +
+        c(results$trace[,2],
+          rep(NA,ntrial-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),2])))
+      
+      anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s] ,'cj'] <- results$pred
+      anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s] ,'alpha'] <- results$trace[,1]
+      anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s] ,'beta'] <- results$trace[,2]  
+    }
+  }
   par[par$sub==subs[s],"manip"] <- unique(temp_dat$manip)
 }
-summary(par)
+
+cj_pred <- with(anal_sim,aggregate(cj,by=list(trial,sub),mean))
+alpha <- with(anal_sim,aggregate(alpha,by=list(trial,sub),mean))
+beta <- with(anal_sim,aggregate(beta,by=list(trial,sub),mean))
+names(cj_pred) <- c("trial","sub","cj_pred")
+names(alpha) <- c("trial","sub","alpha")
+names(beta) <- c("trial","sub","beta")
+anal_sim_mean <- merge(merge(cj_pred,alpha),beta)
+Data <- Data[, names(Data) != "cj_pred"]
+Data <- merge(Data,anal_sim_mean)
+
+# Data$cj_pred <- Data$cj_pred/Nsim
+# par_trace$alpha <- par_trace$alpha/Nsim
+# par_trace$beta <- par_trace$beta/Nsim
+
 par <- par[complete.cases(par$bound),]
 
-par_trace <- par_trace[complete.cases(par_trace),]
-par_trace <- subset(par_trace,condition=='plus')
-par_trace <- par_trace[order(par_trace$sub),]
-
-Data$alpha <- par_trace$alpha
-Data$beta <- par_trace$beta
+# par_trace <- par_trace[complete.cases(par_trace),]
+# par_trace <- subset(par_trace,condition=='plus')
+# par_trace <- par_trace[order(par_trace$sub),]
+# Data <- Data[order(Data$sub),]
+# 
+# Data$alpha <- par_trace$alpha
+# Data$beta <- par_trace$beta
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
 
 # Compute rolling mean per subject ----------------------------------------
-
-n <- 10 # Rolling mean window size
+n <- 25 # Rolling mean window size
+n_err <- 25
 
 trial_conf_sub <- with(Data,aggregate(cj,by=list(trial,cor,sub),mean))
 names(trial_conf_sub) <- c("trial","cor","sub","cj")
@@ -322,7 +357,7 @@ names(trial_conf_sub) <- c("trial","cor","sub","cj")
 pred_conf_sub <- with(Data,aggregate(cj_pred,by=list(trial,cor,sub),mean))
 names(pred_conf_sub) <- c("trial","cor","sub","cj")
 
-trials <- data.frame(trial=rep(0:(Ntrials-1),each=2),
+trials <- data.frame(trial=rep((0:(Ntrials-1))+Nskip,each=2),
                      cor=c(0,1),sub=rep(subs,each=Ntrials*2))
 
 cj_ma <- merge(trial_conf_sub,trials,all=T)
@@ -332,9 +367,9 @@ ma <- function(x,n,names){
   return(rollapply(x[,names], width=n, FUN=function(x) mean(x, na.rm=TRUE),partial=TRUE, align="center"))
 }
 for (s in subs) {
-  cj_ma[cj_ma$sub==s&cj_ma$cor==0,"cj"] <- ma(subset(cj_ma,sub==s&cor==0),n,"cj")
+  cj_ma[cj_ma$sub==s&cj_ma$cor==0,"cj"] <- ma(subset(cj_ma,sub==s&cor==0),n_err,"cj")
   cj_ma[cj_ma$sub==s&cj_ma$cor==1,"cj"] <- ma(subset(cj_ma,sub==s&cor==1),n,"cj")
-  cj_pred_ma[cj_pred_ma$sub==s&cj_pred_ma$cor==0,"cj"] <- ma(subset(cj_pred_ma,sub==s&cor==0),n,"cj")
+  cj_pred_ma[cj_pred_ma$sub==s&cj_pred_ma$cor==0,"cj"] <- ma(subset(cj_pred_ma,sub==s&cor==0),n_err,"cj")
   cj_pred_ma[cj_pred_ma$sub==s&cj_pred_ma$cor==1,"cj"] <- ma(subset(cj_pred_ma,sub==s&cor==1),n,"cj")
 }
 # Plot traces -------------------------------------------------------------
@@ -352,7 +387,7 @@ go_to("plots")
 go_to("alternating_fb")
 go_to("trim_skip")
 
-jpeg(filename = "traces.jpg",units = 'cm',width = 42,height = 30,res=300)
+jpeg(filename = "traces_test_1.jpg",units = 'cm',width = 42,height = 30,res=300)
 # layout(matrix(c(1,1,3,3,2,2,4,4,5,6,7,8),ncol=3))
 layout(matrix(c(1,2,9,9,5,6,11,11,1,3,10,10,5,7,12,12,1,4,13,14,5,8,15,16),ncol=3),heights = c(.05,.05,.2,.2,.05,.05,.2,.2))
 par(mar=c(0,0,0,0))
@@ -375,12 +410,6 @@ title(cex.main=cex.title,line=title_line,main= expression("Weight traces"))
 par(mar=c(4,5,0,0)+.1)
 # Plot ExpA trace --------------------------------------------------------
 
-# Remove odd subject
-# RTconf_rm <- subset(Data,trial>5&RTconf>5)
-# RTconf_rm <- unique(RTconf_rm$sub)
-# Data_beta <- subset(Data_beta,!(sub %in% RTconf_rm))
-# Data_alpha <- subset(Data_alpha,!(sub %in% RTconf_rm))
-
 plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
 minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
 Ntrials_phase <- Ntrials/length(unique(Data$phase))
@@ -393,6 +422,7 @@ conf_plus <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,
 names(conf_plus) <- c("trial","cor","cj")
 conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
 names(conf_plus_se) <- c("trial","cor","cj")
+
 
 xlen <- dim(conf_plus)[1]/2
 conf_min_err <- subset(conf_min,cor==0)$cj
@@ -552,7 +582,7 @@ plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
 minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
 
 # Plot trace alpha experiment
-alpha_trace <- with(subset(par_trace,sub %in% Data_alpha$sub),aggregate(alpha,by=list(sub=sub,trial=trial,condition=condition),mean))
+alpha_trace <- with(Data_alpha,aggregate(alpha,by=list(sub=sub,trial=trial,condition=condition),mean))
 alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub ~trial, value = "x", fun.aggregate = mean)
 alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first & !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
 count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
@@ -574,7 +604,7 @@ polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_plus,na.rm=T) +
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 
-beta_trace <- with(subset(par_trace,sub %in% Data_alpha$sub),aggregate(beta,by=list(sub=sub,trial=trial,condition=condition),mean))
+beta_trace <- with(Data_alpha,aggregate(beta,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
 beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
@@ -595,7 +625,7 @@ polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_plus,na.rm=T) +
 plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
 minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
 
-alpha_trace <- with(subset(par_trace,sub %in% Data_beta$sub),aggregate(alpha,by=list(sub=sub,trial=trial,condition=condition),mean))
+alpha_trace <- with(Data_beta,aggregate(alpha,by=list(sub=sub,trial=trial,condition=condition),mean))
 alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
 alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
 count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
@@ -617,7 +647,7 @@ polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_plus,na.rm=T) +
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 
-beta_trace <- with(subset(par_trace,sub %in% Data_beta$sub),aggregate(beta,by=list(sub=sub,trial=trial,condition=condition),mean))
+beta_trace <- with(Data_beta,aggregate(beta,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
 beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
@@ -840,66 +870,38 @@ abline(lm(Data$cj~Data$cj_pred)$coef[1],lm(Data$cj~Data$cj_pred)$coef[2]/6)
 dev.off()
 
 # Split trials in each phase in 4 -----------------------------------------
-m.int <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (1|sub),REML = F)
-m.cond <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
-anova(m.int,m.cond)
-m.cond.cor <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
-anova(m.cond,m.cond.cor)
-anova(m.cond.cor)
-emm <- emmeans(m.cond.cor, ~ condition | phase_block)
-pairs(emm)
-
-m.int <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (1|sub),REML = F)
-m.cond <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
-anova(m.int,m.cond)
-m.cond.cor <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
-anova(m.cond,m.cond.cor)
-anova(m.cond.cor)
-emm <- emmeans(m.cond.cor, ~ condition | cor | phase_block)
-pairs(emm)
-
-Nalpha <- length(unique(Data_alpha$sub))
-Nbeta <- length(unique(Data_beta$sub))
-conf_group <- with(Data,aggregate(cj,by=list(phase_block,manip,condition),mean))
-conf_group_sd <- with(Data,aggregate(cj,by=list(phase_block,manip,condition),sd))
-names(conf_group) <- c('phase_block','manip','condition','cj')
-names(conf_group_sd) <- c('phase_block','manip','condition','cj')
-
-conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition)
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition)
-conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
-conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
-conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition)
-conf_beta_sd <- subset(conf_group_sd,manip=='beta')
-conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
-conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
-
-jpeg('trace_aggreg.jpg', width = 20, height = 12, units = 'cm', res = 300)
-par(mfrow=c(1,2))
-plot(conf_alpha$minus,ylim=c(.79,.88),main='Alpha experiment',col = BLUE, type = 'b',
-     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
-lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
-error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
-          lwd=2, col = VERMILLION)
-legend("bottom",legend = c('Plus','Minus'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T, bty = 'n')
-
-
-plot(conf_beta$minus,ylim=c(.79,.88),main='Beta experiment',col = BLUE, type = 'b',
-     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
-lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
-error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
-          lwd=2, col = VERMILLION)
-par(mfrow=c(1,1))
-dev.off()
+if (stat_tests) {
+  
+  m.int <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (1|sub),REML = F)
+  m.cond <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
+  anova(m.int,m.cond)
+  m.cond.cor <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
+  anova(m.cond,m.cond.cor)
+  anova(m.cond.cor)
+  emm <- emmeans(m.cond.cor, ~ condition | phase_block)
+  pairs(emm)
+  emm <- emmeans(m.cond.cor, ~ phase_block | condition)
+  pairs(emm)
+  Data_alpha$phase_block <- as.numeric(Data_alpha$phase_block)
+  m.cond.cor.cont <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
+  anova(m.cond.cor.cont)
+  emm <- emmeans(m.cond.cor.cont, ~ condition | phase_block)
+  pairs(emm)
+  emm <- emmeans(m.cond.cor.cont, ~ condition)
+  pairs(emm)
+  emm <- emmeans(m.cond.cor.cont, ~ phase_block)
+  pairs(emm)
+  
+  
+  m.int <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (1|sub),REML = F)
+  m.cond <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
+  anova(m.int,m.cond)
+  m.cond.cor <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
+  anova(m.cond,m.cond.cor)
+  anova(m.cond.cor)
+  emm <- emmeans(m.cond.cor, ~ condition | cor | phase_block)
+  pairs(emm)
+}
 
 # Aggregating behavior
 Nalpha <- length(unique(Data_alpha$sub))
@@ -934,12 +936,19 @@ conf_beta_pred_sd$cj <- conf_beta_pred_sd$cj/sqrt(Nbeta)
 conf_beta_pred_sd <- cast(conf_beta_pred_sd, phase_block ~ condition + cor)
 
 xlen <- nrow(conf_alpha)
-jpeg('trace_aggreg_cor.jpg', width = 20, height = 12, units = 'cm', res = 300)
-par(mfrow=c(1,2))
-plot(conf_alpha$minus_0,ylim=c(.7,.9),main='Alpha experiment',col = BLUE, type = 'b',
+tiff('trace_aggreg_cor.tiff', width = 36, height = 9, units = 'cm', res = 300)
+layout(matrix(c(1,3,2,4),ncol=2),heights=c(1,7))
+par(mar=c(0,0,0,0))
+plot.new()
+title(cex.main=cex.title*.66/.83,line=title_line+1,main = expression(paste(alpha,"-Manipulated Feedback")))
+plot.new()
+title(cex.main=cex.title*.66/.83,line=title_line+1,main = expression(paste(beta,"-Manipulated Feedback")))
+par(mar=c(4,5,0,1.1)+.1)
+
+plot(conf_alpha$minus_0,ylim=c(.7,.9),main='',col = BLUE, type = 'b',
      lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
+     xlab = "Trials",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis*.66/.83)
 lines(conf_alpha$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
 lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
 lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
@@ -952,7 +961,7 @@ error.bar(1:xlen,conf_alpha$minus_1,conf_alpha_sd$minus_1,
 error.bar(1:xlen,conf_alpha$plus_1,conf_alpha_sd$plus_1,
           lwd=2, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_0 + conf_alpha_pred_sd$minus_0,
-        (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
+                           (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
 polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_1 + conf_alpha_pred_sd$minus_1,
                            (conf_alpha_pred$minus_1 - conf_alpha_pred_sd$minus_1)[xlen:1]),
@@ -963,14 +972,14 @@ polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
 polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
                            (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
- legend("bottom",legend = c('Plus','Minus'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T, bty = 'n')
+legend("bottom",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
 
 
-plot(conf_beta$minus_0,ylim=c(.7,.9),main='Beta experiment',col = BLUE, type = 'b',
+plot(conf_beta$minus_0,ylim=c(.7,.9),main='',col = BLUE, type = 'b',
      lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
+     xlab = "Trials",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis*.66/.83)
 lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
 lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
 lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
@@ -997,40 +1006,56 @@ polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
 par(mfrow=c(1,1))
 dev.off()
 
+
 # Parameter trace aggregated over switches ----------------------------------------------
-# Analyze alpha experiment
-m.alpha.a <- lmer(data = Data_alpha, alpha ~ phase_block*condition + (phase_block+condition|sub), REML = F,
-           control = lmerControl(optimizer = "bobyqa"))
-anova(m.alpha.a)
-emm <- emmeans(m.alpha.a, ~ condition | phase_block)
-pairs(emm)
-emm <- emmeans(m.alpha.a, ~ phase_block | condition)
-pairs(emm)
-
-m.alpha.b <- lmer(data = Data_alpha, beta ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-           control = lmerControl(optimizer = "bobyqa"))
-anova(m.alpha.b)
-emm <- emmeans(m.alpha.b, ~ phase_block | condition)
-pairs(emm)
-emm <- emmeans(m.alpha.b, ~ condition | phase_block)
-pairs(emm)
-
-# Do the same with beta experiment
-m.beta.a <- lmer(data = Data_beta, alpha ~ phase_block*condition + (phase_block+condition|sub), REML = F,
-                 control = lmerControl(optimizer = "bobyqa"))
-anova(m.beta.a)
-emm <- emmeans(m.beta.a, ~ phase_block)
-pairs(emm)
-emm <- emmeans(m.beta.a, ~ condition | phase_block)
-pairs(emm)
-emm <- emmeans(m.beta.a, ~ phase_block | condition)
-pairs(emm)
-
-m.beta.b <- lmer(data = Data_beta, beta ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                 control = lmerControl(optimizer = "bobyqa"))
-anova(m.beta.b)
+if (stat_tests) {
+  # Analyze alpha experiment
+  m.alpha.a <- lmer(data = Data_alpha, alpha ~ phase_block*condition + (phase_block+condition|sub), REML = F,
+                    control = lmerControl(optimizer = "bobyqa"))
+  anova(m.alpha.a)
+  emm <- emmeans(m.alpha.a, ~ condition | phase_block)
+  pairs(emm)
+  emm <- emmeans(m.alpha.a, ~ phase_block | condition)
+  pairs(emm)
+  
+  m.alpha.b <- lmer(data = Data_alpha, beta ~ phase_block*condition + (condition + phase_block|sub), REML = F,
+                    control = lmerControl(optimizer = "bobyqa"))
+  anova(m.alpha.b)
+  emm <- emmeans(m.alpha.b, ~ phase_block | condition)
+  pairs(emm)
+  emm <- emmeans(m.alpha.b, ~ condition | phase_block)
+  pairs(emm)
+  
+  # Do the same with beta experiment
+  m.beta.a <- lmer(data = Data_beta, alpha ~ phase_block*condition + (phase_block+condition|sub), REML = F,
+                   control = lmerControl(optimizer = "bobyqa"))
+  anova(m.beta.a)
+  emm <- emmeans(m.beta.a, ~ condition | phase_block)
+  pairs(emm)
+  emm <- emmeans(m.beta.a, ~ phase_block | condition)
+  pairs(emm)
+  
+  m.beta.b <- lmer(data = Data_beta, beta ~ phase_block*condition + (condition + phase_block|sub), REML = F,
+                   control = lmerControl(optimizer = "bobyqa"))
+  anova(m.beta.b)
+  emm <- emmeans(m.beta.b, ~ condition | phase_block)
+  pairs(emm)
+  emm <- emmeans(m.beta.b, ~ phase_block | condition)
+  pairs(emm)
+  
+}
 
 # Plot all this
+tiff('param_trace_aggreg.tiff', width = 36, height = 14, units = 'cm', res = 300)
+layout(matrix(c(1,3,5,2,4,6),ncol=2),heights = c(1,6.5,6.5))
+
+par(mar=c(0,0,0,0))
+plot.new()
+title(cex.main=cex.title,line=title_line,main = expression(paste(alpha,"-Manipulated Feedback")))
+plot.new()
+title(cex.main=cex.title,line=title_line,main = expression(paste(beta,"-Manipulated Feedback")))
+par(mar=c(4,5,0,1.1)+.1)
+
 Nalpha <- length(unique(Data_alpha$sub))
 Nbeta <- length(unique(Data_beta$sub))
 conf_group <- with(Data,aggregate(alpha,by=list(phase_block,manip,condition),mean))
@@ -1047,32 +1072,28 @@ conf_beta_sd <- subset(conf_group_sd,manip=='beta')
 conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
 conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
 
-jpeg('alpha_trace_aggreg.jpg', width = 20, height = 12, units = 'cm', res = 300)
-par(mfrow=c(1,2))
-plot(conf_alpha$minus,ylim=c(0,15),main='Alpha experiment',col = BLUE, type = 'b',
+plot(conf_alpha$minus,ylim=c(5,13),main=NULL,col = BLUE, type = 'b',
      lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
+     xlab = "Trials",cex.lab=cex.lab,cex.axis=cex.axis)
+axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
 lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
 error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
           lwd=2, col = BLUE)
 error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
           lwd=2, col = VERMILLION)
-legend("bottom",legend = c('Plus','Minus'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T, bty = 'n')
+legend("bottom",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T,cex=cex.legend, bty = 'n')
 
 
-plot(conf_beta$minus,ylim=c(0,15),main='Beta experiment',col = BLUE, type = 'b',
+plot(conf_beta$minus,ylim=c(5,13),main=NULL,col = BLUE, type = 'b',
      lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
+     xlab = "Trials",cex.lab=cex.lab,cex.axis=cex.axis)
+axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
 lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
 error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
           lwd=2, col = BLUE)
 error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
           lwd=2, col = VERMILLION)
-par(mfrow=c(1,1))
-dev.off()
 
 Nalpha <- length(unique(Data_alpha$sub))
 Nbeta <- length(unique(Data_beta$sub))
@@ -1080,6 +1101,8 @@ conf_group <- with(Data,aggregate(beta,by=list(phase_block,manip,condition),mean
 conf_group_sd <- with(Data,aggregate(beta,by=list(phase_block,manip,condition),sd))
 names(conf_group) <- c('phase_block','manip','condition','cj')
 names(conf_group_sd) <- c('phase_block','manip','condition','cj')
+conf_group$cj <- conf_group$cj/10
+conf_group_sd$cj <- conf_group_sd$cj/10
 
 conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition)
 conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition)
@@ -1090,25 +1113,23 @@ conf_beta_sd <- subset(conf_group_sd,manip=='beta')
 conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
 conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
 
-jpeg('beta_trace_aggreg.jpg', width = 20, height = 12, units = 'cm', res = 300)
-par(mfrow=c(1,2))
-plot(conf_alpha$minus,ylim=c(15,22),main='Alpha experiment',col = BLUE, type = 'b',
+plot(conf_alpha$minus,ylim=c(1.5,2.2),main=NULL,col = BLUE, type = 'b',
      lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
+     xlab = "Trials",cex.axis=cex.axis,cex.lab=cex.lab)
+axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
 lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
 error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
           lwd=2, col = BLUE)
 error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
           lwd=2, col = VERMILLION)
-legend("bottom",legend = c('Plus','Minus'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T, bty = 'n')
+legend("bottom",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T,cex=cex.legend, bty = 'n')
 
 
-plot(conf_beta$minus,ylim=c(15,22),main='Beta experiment',col = BLUE, type = 'b',
+plot(conf_beta$minus,ylim=c(1.5,2.2),main=NULL,col = BLUE, type = 'b',
      lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",
-     xlab = "Within phase block of trials")
-axis(1, at = 1:4, labels = 1:4)
+     xlab = "Trials",cex.axis=cex.axis,cex.lab=cex.lab)
+axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
 lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
 error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
           lwd=2, col = BLUE)
@@ -1116,8 +1137,6 @@ error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
           lwd=2, col = VERMILLION)
 par(mfrow=c(1,1))
 dev.off()
-
-
 # Plot parameter aggreg trace with P1 skipped -----------------------------
 
 Data_save <- Data
@@ -1210,3 +1229,129 @@ dev.off()
 Data <- Data_save
 
 
+
+# Plot Accuracy ~ Confidence ----------------------------------------------
+
+cor_cj <- with(Data,aggregate(cor,by=list(cj,sub),mean))
+names(cor_cj) <- c('cj','sub','cor')
+cor_cj$cj <- cor_cj$cj*6
+count_data <- table(cor_cj$cj)
+r <- cor(cor_cj$cj,cor_cj$cor)
+cor_cj <- as.matrix(cast(cor_cj, sub~cj))
+cexlab <- 2.25
+cexax <- 1.5
+cexmain <- 2.25
+cexpt <- 1.5
+ntick <- 2
+tiff("accuracy_confidence.tiff",width = 10.5, height = 10.5,units='cm',res=300)
+par(mar=c(4,4,4,1)+.1)
+plot(colMeans(cor_cj,na.rm=T),ylim=c(0,1),xlab='',col='white',
+     ylab='',bty='n', main = paste0('r = ',round(r,3)),
+     cex.axis=cexax,cex.main=cexmain,yaxt='n')
+mtext(side=1,line=2.5,text='Confidence',cex=cexlab)
+mtext(side=2,line=2.5,text='Accuracy',cex=cexlab)
+axis(2,at=0:ntick/ntick,labels = 0:ntick/ntick,cex.axis = cexax)
+for (i in 1:6) {
+  points(jitter(rep(i,nrow(cor_cj)),amount=.1),cor_cj[,i],pch=16,col=rgb(.5,.5,.5,.2),cex=cexpt)
+}
+lines(colMeans(cor_cj,na.rm=T),type='b',pch=16,lwd=3,cex=cexpt)
+error.bar(1:6,colMeans(cor_cj,na.rm=T),colSds(cor_cj,na.rm=T)/sqrt(count_data),lwd=3)
+dev.off()
+par(mar=c(5,4,4,2)+.1)
+
+
+# Reviewer analysis: confidence*difficulty in error trials ----------------
+
+
+# Alpha-manipulated feedback
+N_temp <- length(unique(Data_alpha$sub))
+
+cjlow <- with(subset(Data_alpha,condition=="minus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+names(cjlow) <- c('sub','difflevel','cor','cj')
+cjlow_cor <- subset(cjlow,cor==1); cjlow_err <- subset(cjlow,cor==0)
+cjlow_cor <- cast(cjlow_cor,sub~difflevel); cjlow_err <- cast(cjlow_err,sub~difflevel)
+cjmed <- with(subset(Data_alpha,condition=="control"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+names(cjmed) <- c('sub','difflevel','cor','cj')
+cjmed_cor <- subset(cjmed,cor==1); cjmed_err <- subset(cjmed,cor==0)
+cjmed_cor <- cast(cjmed_cor,sub~difflevel); cjmed_err <- cast(cjmed_err,sub~difflevel)
+cjhigh <- with(subset(Data_alpha,condition=="plus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+names(cjhigh) <- c('sub','difflevel','cor','cj')
+cjhigh_cor <- subset(cjhigh,cor==1); cjhigh_err <- subset(cjhigh,cor==0)
+cjhigh_cor <- cast(cjhigh_cor,sub~difflevel); cjhigh_err <- cast(cjhigh_err,sub~difflevel)
+
+xminus_err <- cjlow_err[,c(2:4)];xbaseline_err <- cjmed_err[,c(2:4)];xplus_err <- cjhigh_err[,c(2:4)]
+xminus_err <- xminus_err[,c("hard","medium","easy")];
+xbaseline_err <- xbaseline_err[,c("hard","medium","easy")];
+xplus_err <- xplus_err[,c("hard","medium","easy")]
+
+delta_minus <- c()
+delta_baseline <- c()
+delta_plus <- c()
+for (i in 1:N_temp) {
+  delta_minus <- c(delta_minus,xminus_err[i,3]-xminus_err[i,1])
+  delta_baseline <- c(delta_baseline,xbaseline_err[i,3]-xbaseline_err[i,1])
+  delta_plus <- c(delta_plus,xplus_err[i,3]-xplus_err[i,1])
+}
+range_delta <- range(c(delta_minus,delta_plus,delta_baseline),na.rm = T)
+jpeg("diff_conf_2B.jpg",units='cm',width=8,height=8,res=300)
+par(mar=c(4,4,2,0))
+hist(delta_minus,col=col_minus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10),ylim=c(0,18),
+     main = "Experiment 2B", xlab = "Delta confidence (Easy - Hard)")
+hist(delta_baseline,add=T,col=col_baseline_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
+hist(delta_plus,add=T,col=col_plus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
+legend("topleft",legend=c("Minus","Control","Plus"),bty='n',title = "Feedback condition",
+       fill=c(col_minus_shade,col_baseline_shade,col_plus_shade),cex=.8)
+dev.off()
+
+# Beta-manipulated feedback
+N_temp <- length(unique(Data_beta$sub))
+
+cjlow <- with(subset(Data_beta,condition=="minus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+names(cjlow) <- c('sub','difflevel','cor','cj')
+cjlow_cor <- subset(cjlow,cor==1); cjlow_err <- subset(cjlow,cor==0)
+cjlow_cor <- cast(cjlow_cor,sub~difflevel); cjlow_err <- cast(cjlow_err,sub~difflevel)
+cjmed <- with(subset(Data_beta,condition=="control"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+names(cjmed) <- c('sub','difflevel','cor','cj')
+cjmed_cor <- subset(cjmed,cor==1); cjmed_err <- subset(cjmed,cor==0)
+cjmed_cor <- cast(cjmed_cor,sub~difflevel); cjmed_err <- cast(cjmed_err,sub~difflevel)
+cjhigh <- with(subset(Data_beta,condition=="plus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+names(cjhigh) <- c('sub','difflevel','cor','cj')
+cjhigh_cor <- subset(cjhigh,cor==1); cjhigh_err <- subset(cjhigh,cor==0)
+cjhigh_cor <- cast(cjhigh_cor,sub~difflevel); cjhigh_err <- cast(cjhigh_err,sub~difflevel)
+
+xminus_err <- cjlow_err[,c(2:4)];xbaseline_err <- cjmed_err[,c(2:4)];xplus_err <- cjhigh_err[,c(2:4)]
+xminus_err <- xminus_err[,c("hard","medium","easy")];
+xbaseline_err <- xbaseline_err[,c("hard","medium","easy")];
+xplus_err <- xplus_err[,c("hard","medium","easy")]
+
+delta_minus <- c()
+delta_baseline <- c()
+delta_plus <- c()
+for (i in 1:N_temp) {
+  delta_minus <- c(delta_minus,xminus_err[i,3]-xminus_err[i,1])
+  delta_baseline <- c(delta_baseline,xbaseline_err[i,3]-xbaseline_err[i,1])
+  delta_plus <- c(delta_plus,xplus_err[i,3]-xplus_err[i,1])
+}
+range_delta <- range(c(delta_minus,delta_plus,delta_baseline),na.rm = T)
+jpeg("diff_conf_2A.jpg",units='cm',width=8,height=8,res=300)
+par(mar=c(4,4,2,0))
+hist(delta_minus,col=col_minus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10),ylim=c(0,18),
+     main = "Experiment 2A", xlab = "Delta confidence (Easy - Hard)")
+hist(delta_baseline,add=T,col=col_baseline_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
+hist(delta_plus,add=T,col=col_plus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
+legend("topleft",legend=c("Minus","Control","Plus"),bty='n',title = "Feedback condition",
+       fill=c(col_minus_shade,col_baseline_shade,col_plus_shade),cex=.8)
+dev.off()
+
+if (stat_tests) {
+  m <- lmer(data = subset(Data_alpha,cor==0), cj ~ difflevel*condition + (difflevel|sub))
+  m2 <- lmer(data = subset(Data_alpha,cor==0), cj ~ difflevel*condition + (condition|sub))
+  m3 <- lmer(data = subset(Data_alpha,cor==0), cj ~ difflevel*condition + (difflevel+condition|sub))
+  anova(m3,m2)
+  anova(m3,m)
+  anova(m3)
+  
+  mb <- lmer(data = subset(Data_beta,cor==0), cj ~ difflevel*condition + (condition|sub),
+             REML = F,control = lmerControl(optimizer='bobyqa'))
+  anova(mb)
+}

@@ -4,7 +4,7 @@ beta_plus <- rep(c(0,NA),each=126,length.out=756)
 beta_minus <- rep(c(NA,0),each=126,length.out=756)
 lwdline <- 3
 
-jpeg(filename = 'method.jpg',width = 21,height = 13, units = 'cm', res = 300)
+tiff(filename = 'method.tiff',width = 21,height = 13, units = 'cm', res = 300)
 par(mfrow=c(1,2),mar=c(5,4,1,1))
 plot(alpha_plus,ylim=c(9,36),xlim=c(0,800),type='l',bty='n', lwd=lwdline,
      ylab='',xlab='',col=VERMILLION,cex.axis=cexax)
