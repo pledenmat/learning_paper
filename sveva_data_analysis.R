@@ -891,7 +891,8 @@ if (stat_tests) {
   pairs(emm)
   emm <- emmeans(m.cond.cor.cont, ~ phase_block)
   pairs(emm)
-  
+  m.cond.cor.cont2 <- lmer(data = subset(Data_alpha,phase>0), cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
+  anova(m.cond.cor.cont2)
   
   m.int <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (1|sub),REML = F)
   m.cond <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
@@ -1260,98 +1261,36 @@ dev.off()
 par(mar=c(5,4,4,2)+.1)
 
 
-# Reviewer analysis: confidence*difficulty in error trials ----------------
-
-
-# Alpha-manipulated feedback
-N_temp <- length(unique(Data_alpha$sub))
-
-cjlow <- with(subset(Data_alpha,condition=="minus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
-names(cjlow) <- c('sub','difflevel','cor','cj')
-cjlow_cor <- subset(cjlow,cor==1); cjlow_err <- subset(cjlow,cor==0)
-cjlow_cor <- cast(cjlow_cor,sub~difflevel); cjlow_err <- cast(cjlow_err,sub~difflevel)
-cjmed <- with(subset(Data_alpha,condition=="control"),aggregate(cj,by=list(sub,difflevel,cor),mean));
-names(cjmed) <- c('sub','difflevel','cor','cj')
-cjmed_cor <- subset(cjmed,cor==1); cjmed_err <- subset(cjmed,cor==0)
-cjmed_cor <- cast(cjmed_cor,sub~difflevel); cjmed_err <- cast(cjmed_err,sub~difflevel)
-cjhigh <- with(subset(Data_alpha,condition=="plus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
-names(cjhigh) <- c('sub','difflevel','cor','cj')
-cjhigh_cor <- subset(cjhigh,cor==1); cjhigh_err <- subset(cjhigh,cor==0)
-cjhigh_cor <- cast(cjhigh_cor,sub~difflevel); cjhigh_err <- cast(cjhigh_err,sub~difflevel)
-
-xminus_err <- cjlow_err[,c(2:4)];xbaseline_err <- cjmed_err[,c(2:4)];xplus_err <- cjhigh_err[,c(2:4)]
-xminus_err <- xminus_err[,c("hard","medium","easy")];
-xbaseline_err <- xbaseline_err[,c("hard","medium","easy")];
-xplus_err <- xplus_err[,c("hard","medium","easy")]
-
-delta_minus <- c()
-delta_baseline <- c()
-delta_plus <- c()
-for (i in 1:N_temp) {
-  delta_minus <- c(delta_minus,xminus_err[i,3]-xminus_err[i,1])
-  delta_baseline <- c(delta_baseline,xbaseline_err[i,3]-xbaseline_err[i,1])
-  delta_plus <- c(delta_plus,xplus_err[i,3]-xplus_err[i,1])
-}
-range_delta <- range(c(delta_minus,delta_plus,delta_baseline),na.rm = T)
-jpeg("diff_conf_2B.jpg",units='cm',width=8,height=8,res=300)
-par(mar=c(4,4,2,0))
-hist(delta_minus,col=col_minus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10),ylim=c(0,18),
-     main = "Experiment 2B", xlab = "Delta confidence (Easy - Hard)")
-hist(delta_baseline,add=T,col=col_baseline_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
-hist(delta_plus,add=T,col=col_plus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
-legend("topleft",legend=c("Minus","Control","Plus"),bty='n',title = "Feedback condition",
-       fill=c(col_minus_shade,col_baseline_shade,col_plus_shade),cex=.8)
-dev.off()
-
-# Beta-manipulated feedback
-N_temp <- length(unique(Data_beta$sub))
-
-cjlow <- with(subset(Data_beta,condition=="minus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
-names(cjlow) <- c('sub','difflevel','cor','cj')
-cjlow_cor <- subset(cjlow,cor==1); cjlow_err <- subset(cjlow,cor==0)
-cjlow_cor <- cast(cjlow_cor,sub~difflevel); cjlow_err <- cast(cjlow_err,sub~difflevel)
-cjmed <- with(subset(Data_beta,condition=="control"),aggregate(cj,by=list(sub,difflevel,cor),mean));
-names(cjmed) <- c('sub','difflevel','cor','cj')
-cjmed_cor <- subset(cjmed,cor==1); cjmed_err <- subset(cjmed,cor==0)
-cjmed_cor <- cast(cjmed_cor,sub~difflevel); cjmed_err <- cast(cjmed_err,sub~difflevel)
-cjhigh <- with(subset(Data_beta,condition=="plus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
-names(cjhigh) <- c('sub','difflevel','cor','cj')
-cjhigh_cor <- subset(cjhigh,cor==1); cjhigh_err <- subset(cjhigh,cor==0)
-cjhigh_cor <- cast(cjhigh_cor,sub~difflevel); cjhigh_err <- cast(cjhigh_err,sub~difflevel)
-
-xminus_err <- cjlow_err[,c(2:4)];xbaseline_err <- cjmed_err[,c(2:4)];xplus_err <- cjhigh_err[,c(2:4)]
-xminus_err <- xminus_err[,c("hard","medium","easy")];
-xbaseline_err <- xbaseline_err[,c("hard","medium","easy")];
-xplus_err <- xplus_err[,c("hard","medium","easy")]
-
-delta_minus <- c()
-delta_baseline <- c()
-delta_plus <- c()
-for (i in 1:N_temp) {
-  delta_minus <- c(delta_minus,xminus_err[i,3]-xminus_err[i,1])
-  delta_baseline <- c(delta_baseline,xbaseline_err[i,3]-xbaseline_err[i,1])
-  delta_plus <- c(delta_plus,xplus_err[i,3]-xplus_err[i,1])
-}
-range_delta <- range(c(delta_minus,delta_plus,delta_baseline),na.rm = T)
-jpeg("diff_conf_2A.jpg",units='cm',width=8,height=8,res=300)
-par(mar=c(4,4,2,0))
-hist(delta_minus,col=col_minus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10),ylim=c(0,18),
-     main = "Experiment 2A", xlab = "Delta confidence (Easy - Hard)")
-hist(delta_baseline,add=T,col=col_baseline_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
-hist(delta_plus,add=T,col=col_plus_shade,breaks = seq(range_delta[1],range_delta[2],length.out=10))
-legend("topleft",legend=c("Minus","Control","Plus"),bty='n',title = "Feedback condition",
-       fill=c(col_minus_shade,col_baseline_shade,col_plus_shade),cex=.8)
-dev.off()
-
-if (stat_tests) {
-  m <- lmer(data = subset(Data_alpha,cor==0), cj ~ difflevel*condition + (difflevel|sub))
-  m2 <- lmer(data = subset(Data_alpha,cor==0), cj ~ difflevel*condition + (condition|sub))
-  m3 <- lmer(data = subset(Data_alpha,cor==0), cj ~ difflevel*condition + (difflevel+condition|sub))
-  anova(m3,m2)
-  anova(m3,m)
-  anova(m3)
+# Analyze variability in parameter trace btw simulations ------------------
+go_to("param_trace_per_sub")
+col_indiv <- rgb(.7,.7,.7,.2)
+for (s in subs) {
+  print(paste("Plotting parameter trace of sub",s))
+  temp_alpha <- as.matrix(cast(subset(anal_sim,sub==s),trial~sim, value = 'alpha'))
+  temp_beta <- as.matrix(cast(subset(anal_sim,sub==s),trial~sim, value = 'beta'))
+  temp_cj <- as.matrix(cast(subset(anal_sim,sub==s),trial~sim, value = 'cj'))
+  jpeg(filename=paste0("param_trace_",s,".jpg"),width=45,height=15,units='cm',res=300)
+  par(mfrow=c(1,3))
+  plot(rowMeans(temp_alpha,na.rm=T),col='white',xlab='Trial',ylab='Alpha',
+       bty='n',ylim=range(temp_alpha,na.rm=T))
+  for (i in 1:Nsim) {
+    lines(temp_alpha[,i], col = col_indiv)
+  }
+  lines(rowMeans(temp_alpha,na.rm=T),type='l',lwd=1)
+  plot(rowMeans(temp_beta,na.rm=T),col='white',xlab='Trial',ylab='beta',
+       bty='n',ylim=range(temp_beta,na.rm=T))
+  for (i in 1:Nsim) {
+    lines(temp_beta[,i], col = col_indiv)
+  }
+  lines(rowMeans(temp_beta,na.rm=T),type='l',lwd=1)
+  plot(rowMeans(temp_cj,na.rm=T),col='white',xlab='Trial',ylab='Confidence',
+       bty='n',ylim=range(temp_cj,na.rm=T))
+  for (i in 1:Nsim) {
+    lines(temp_cj[,i], col = col_indiv)
+  }
+  lines(rowMeans(temp_cj,na.rm=T),type='l',lwd=1)
   
-  mb <- lmer(data = subset(Data_beta,cor==0), cj ~ difflevel*condition + (condition|sub),
-             REML = F,control = lmerControl(optimizer='bobyqa'))
-  anova(mb)
+  dev.off()
 }
+setwd("..")
+par(mfrow=c(1,1))
