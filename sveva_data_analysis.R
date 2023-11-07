@@ -44,9 +44,11 @@ Data[Data$File=="learn_alfa_sub132_1.csv",'sub'] <- 1320
 finished_exp <- as.numeric(names(table(Data$sub)[table(Data$sub)==760]))
 Data <- subset(Data, sub %in% finished_exp)
 
+# Extract post-experiment questionnaire
 questions <- Data[complete.cases(Data$questionID),
                   c("sub","age","gender","handedness","questionID","questionResp")]
 
+# Remove questionnaire from main data frame
 Data <- Data[complete.cases(Data$block),]
 rm_col <- c("File","questionID","questionResp","X","ï..sub")
 Data <- Data[,-which(names(Data) %in% rm_col)]
@@ -58,7 +60,7 @@ Ntrials <- dim(Data)[1]/Nsub
 Data$response <- 0
 Data[Data$resp=="['n']",'response'] <- 1
 
-## Diagnostic plot per participant and task + chance performance testing
+## Diagnostic plot per participant + chance performance testing
 exclusion <- c()
 tasks <- unique(Data$task)
 par(mfrow=c(2,2))
@@ -93,16 +95,13 @@ exclusion <- c(exclusion, unique(conf_count[conf_count$x>.85,"sub"]))
 
 Data <- subset(Data,!(sub %in% exclusion))
 
-age_alpha <- with(Data,aggregate(age,by=list(sub),mean))
-summary(age_alpha$x)
-gender_alpha <- table(Data$gender)
 
 # Convert RTs to seconds
 Data$rt <- Data$rt/1000
 Data$RTconf <- Data$RTconf/1000
 
-# Data <- subset(Data,rt>.2 & rt<5) #Trim RTs
-# Data <- subset(Data,RTconf<5) #Trim confRTs
+Data <- subset(Data,rt>.2 & rt<5) #Trim RTs
+Data <- subset(Data,RTconf<5) #Trim confRTs
 
 Data$response[Data$response==0] <- -1
 
@@ -114,17 +113,18 @@ subs <- unique(Data$sub); Nsub <- length(subs)
 Data[Data$manip=='alfa','manip'] <- 'alpha'
 names(Data)[1] <- "trial"
 
-summary(Data)
-
+# Confidence and feedback on scale from 0 to 1
 Data$cj <- Data$cj/6
 Data$fb <- Data$fb/100
-Data$rt2 <- Data$rt + Data$RTconf
 
+Data$rt2 <- Data$rt + Data$RTconf # Total RT
+
+# Separate participants according to which condition was first for plotting
 Data$group <- "plus_first"
 minus_first <- unique(subset(Data,phase==0&condition=='minus')$sub)
 Data[Data$sub %in% minus_first,"group"] <- "minus_first"
 
-# setwd(curdir)
+go_to("aggregated")
 Nskip <- 5
 Data_trim <- subset(Data,RTconf<5 & rt<5 & rt>.2)
 Data_trim <- subset(Data,RTconf<5 & rt<5 & rt>.2 & trial>=Nskip)
@@ -142,6 +142,16 @@ Data$phase_block <- as.factor(Data$phase_block)
 
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
+
+# Demographics
+age_alpha <- with(Data_alpha,aggregate(age,by=list(sub),mean))
+summary(age_alpha$x)
+gender_alpha <- table(Data_alpha$gender)
+
+age_beta <- with(Data_beta,aggregate(age,by=list(sub),mean))
+summary(age_beta$x)
+gender_beta <- table(Data_beta$gender)
+
 # Behavior analysis -----------------------------------------------------------
 if (stat_tests) {
   # RT
@@ -213,6 +223,7 @@ if (stat_tests) {
   Data$cor <- as.numeric(Data$cor)
 }
 # Retrieve fits -----------------------------------------------------------
+# Some fixed arguments
 beta_input <- .1
 Nupdate_per_trial <- 1
 model <- "allpar"
@@ -223,15 +234,16 @@ Nsim <- 20
 conditions <- sort(unique(Data$condition))
 difflevels <- sort(unique(Data$difflevel)) # Important to sort to match with drift order
 
-ntrial <- Ntrials
-par_trace <- data.frame(trial=(0:(ntrial-1))+Nskip,sub=rep(subs,each=ntrial*2),
-                        condition=rep(c("plus","minus"),each=ntrial),
+# Weight traces
+par_trace <- data.frame(trial=(0:(Ntrials-1))+Nskip,sub=rep(subs,each=Ntrials*2),
+                        condition=rep(c("plus","minus"),each=Ntrials),
                         alpha=0,beta=0)
 
 
 totlen <- length(conditions)*length(difflevels)*length(subs)
+# DDM parameters + hyperparameters + error
 par <- data.frame(bound = NA, drift = NA, ter = NA, eta = NA,
-                  cost_ddm = NA, cost_ldc = NA,
+                  cost_ddm = NA, cost_ldc = NA, a0 = NA, b0 = NA,
                   sub = rep(subs, each = length(conditions)*length(difflevels)),
                   condition = rep(conditions,each = length(difflevels),
                                   length.out=totlen),
@@ -273,17 +285,20 @@ for (s in 1:length(subs)) {
   if (file.exists(ldc_file)) {
     load(ldc_file)
   }else{
+    # Some fits were not properly saved so retrieved from cluster job output logs
     ldc_save <- paste0('ldc_nn/trim_skip/batch_',Nupdate_per_trial,'/slurm-55185173_',s,'.out')
-    test <- readLines(ldc_save)
-    check_finish <- "***** summary of DEoptim object ***** "
-    if (test[length(test)-5] == check_finish) {
-      fit_par <- unlist(strsplit(test[length(test)-4],split=" "))
-      a0 <- as.numeric(fit_par[7])
-      b0 <- as.numeric(fit_par[8])
-      eta <- as.numeric(fit_par[10])
-      cost <- as.numeric(unlist(strsplit(test[length(test)-3],split=" "))[8])
-      ldc.results <- list(optim=list(bestmem=c(a0,b0,1,eta),bestval=cost))
-      save(ldc.results,file=ldc_file)
+    if (file.exists(ldc_save)) {
+      test <- readLines(ldc_save)
+      check_finish <- "***** summary of DEoptim object ***** "
+      if (test[length(test)-5] == check_finish) {
+        fit_par <- unlist(strsplit(test[length(test)-4],split=" "))
+        a0 <- as.numeric(fit_par[7])
+        b0 <- as.numeric(fit_par[8])
+        eta <- as.numeric(fit_par[10])
+        cost <- as.numeric(unlist(strsplit(test[length(test)-3],split=" "))[8])
+        ldc.results <- list(optim=list(bestmem=c(a0,b0,1,eta),bestval=cost))
+        save(ldc.results,file=ldc_file)
+      }
     }
   }
 
@@ -292,6 +307,8 @@ for (s in 1:length(subs)) {
   par[par$sub==subs[s],"eta"] <- ldc.results$optim$bestmem[4]
   par[par$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
   
+  #' Generate model predictions multiple times to account for the stochastic
+  #' nature of estimating single trial accumulated evidence 
   if (file.exists("anal_sim.Rdata")|exists("anal_sim")) {
     load("anal_sim.Rdata")
   } else {
@@ -308,10 +325,10 @@ for (s in 1:length(subs)) {
       
       par_trace[par_trace$sub==subs[s],"alpha"] <- par_trace[par_trace$sub==subs[s],"alpha"] +
         c(results$trace[,1],
-          rep(NA,ntrial-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),1])))
+          rep(NA,Ntrials-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),1])))
       par_trace[par_trace$sub==subs[s],"beta"] <- par_trace[par_trace$sub==subs[s],"beta"] +
         c(results$trace[,2],
-          rep(NA,ntrial-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),2])))
+          rep(NA,Ntrials-length(results$trace[seq(Nupdate_per_trial,nrow(results$trace),Nupdate_per_trial),2])))
       
       anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s] ,'cj'] <- results$pred
       anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s] ,'alpha'] <- results$trace[,1]
@@ -594,13 +611,13 @@ plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),typ
      ylim = c(-10,30),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
-polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
                                  colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
-                                                                                        colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus))[ntrial:1]),
+                                                                                        colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_plus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) + 
                                  colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(alpha_trace_plus,na.rm=T) - 
-                                                                                      colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus))[ntrial:1]),
+                                                                                      colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 
@@ -611,13 +628,13 @@ plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type
      ylim=c(0,30),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
-polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_minus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
                                  colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
-                                                                                       colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus))[ntrial:1]),
+                                                                                       colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_plus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_plus,na.rm=T) + 
                                  colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(beta_trace_plus,na.rm=T) - 
-                                                                                     colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus))[ntrial:1]),
+                                                                                     colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 # Plot trace Beta experiment
@@ -637,13 +654,13 @@ plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),typ
      ylim=c(-10,25),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
-polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
                                  colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
-                                                                                        colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus))[ntrial:1]),
+                                                                                        colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:ntrial,ntrial:1),c(colMeans(alpha_trace_plus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) + 
                                  colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(alpha_trace_plus,na.rm=T) - 
-                                                                                      colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus))[ntrial:1]),
+                                                                                      colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 
@@ -654,13 +671,13 @@ plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type
      ylim=c(0,30),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
-polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_minus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
                                  colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
-                                                                                       colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus))[ntrial:1]),
+                                                                                       colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:ntrial,ntrial:1),c(colMeans(beta_trace_plus,na.rm=T) + 
+polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_plus,na.rm=T) + 
                                  colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(beta_trace_plus,na.rm=T) - 
-                                                                                     colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus))[ntrial:1]),
+                                                                                     colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 dev.off()
