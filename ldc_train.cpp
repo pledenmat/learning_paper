@@ -92,7 +92,7 @@ NumericVector combine_input(NumericMatrix x, NumericVector w, bool binning = fal
 
 // Define main function to train the model
 // [[Rcpp::export]]
-List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta = 0.1,
+List train_model(NumericMatrix x, NumericVector w0, NumericVector y, NumericVector y_err, double eta = 0.1,
                  std::string error_type1 = "cross-entropy", int Nupdate_per_trial = 1000,
                  bool verbose = false, bool trace = false, bool binning = false, 
                  int nbin = 6.0, std::string cost = "per_trial",
@@ -138,7 +138,7 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
           if (j/Nupdate_per_trial >= Nskip_error) {
             NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
             double y_pred_mean = mean(y_pred);
-            err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
+            err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
           }
         }
       }
@@ -163,7 +163,7 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
             if (j/Nupdate_per_trial >= Nskip_error) {
               NumericVector y_pred = combine_input(x_err(Range(((j+1)/Nupdate_per_trial - 1)*Nsim_error,((j+1)/Nupdate_per_trial)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
               double y_pred_mean = mean(y_pred);
-              err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
+              err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
             }
           }
         } 
@@ -186,7 +186,7 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, double eta 
 
 // Define main function to train the model
 // [[Rcpp::export]]
-List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, double eta_a = 0.1,
+List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, NumericVector y_err, double eta_a = 0.1,
                  double eta_b = 0.1, std::string error_type1 = "cross-entropy", 
                  int Nupdate_per_trial = 1000, bool verbose = false, bool trace = false, 
                  bool binning = false,int nbin = 6.0, std::string cost = "per_trial",
@@ -232,7 +232,7 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, dou
           if (j/Nupdate_per_trial >= Nskip_error) {
             NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
             double y_pred_mean = mean(y_pred);
-            err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
+            err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
           }
         }
       }
@@ -257,7 +257,7 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, dou
             if (j/Nupdate_per_trial >= Nskip_error) {
               NumericVector y_pred = combine_input(x_err(Range(((j+1)/Nupdate_per_trial - 1)*Nsim_error,((j+1)/Nupdate_per_trial)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
               double y_pred_mean = mean(y_pred);
-              err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
+              err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
             }
           }
         } 
