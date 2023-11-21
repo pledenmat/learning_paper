@@ -410,12 +410,12 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     }
     if (eta_sep) {
       results <- train_model_eta_sep(x,w,y,y_err=y_err,eta_a=params[4],eta_b=params[5],error_type1 = error_type1,trace=T,
-                             Nupdate_per_trial = Nupdate_per_trial,binning=binning,
+                             Nupdate_per_trial = Nupdate_per_trial,binning=binning,Nsim_error=Nsim_error,
                              nbin=nbin,cost=cost,error_type2 = error_type2,x_err=x_err)
       
     } else {
       results <- train_model(x,w,y,y_err=y_err,eta=params[4],error_type1 = error_type1,trace=T,
-                             Nupdate_per_trial = Nupdate_per_trial,binning=binning,
+                             Nupdate_per_trial = Nupdate_per_trial,binning=binning,Nsim_error=Nsim_error,
                              nbin=nbin,cost=cost,error_type2 = error_type2,x_err=x_err)
     }
     
