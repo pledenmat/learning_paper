@@ -223,15 +223,54 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, Num
       //dat_iter(j, 2) = y_pred_mean;
       //}
     }
-    if (!trace) {
-      NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
-      double y_pred_mean = mean(y_pred);
-      err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
+    if (j % Nupdate_per_trial == 0){
+      if (cost == "next_trial"){
+        NumericVector y_pred = combine_input(x(Range(j,j+Nupdate_per_trial-1), _), w, binning = binning, nbin = nbin);
+        err += error(y[Range(j,j+Nupdate_per_trial-1)], y_pred, error_type2);
+      } else if (cost == "separated") {
+        if (Nupdate_per_trial == 1){
+          if (j/Nupdate_per_trial >= Nskip_error) {
+            NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
+            double y_pred_mean = mean(y_pred);
+            err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
+          }
+        }
+      }
+    } else {
+      if ((j+1) % Nupdate_per_trial == 0) {
+        if (cost == "per_trial") {
+          NumericVector y_pred = combine_input(x(Range(j-Nupdate_per_trial+1,j), _), w, binning = binning, nbin = nbin);
+          err += error(y[Range(j-Nupdate_per_trial+1,j)], y_pred, error_type2);
+        } else if (cost == "per_trial_mean") {
+          NumericVector y_pred = combine_input(x(Range(j-Nupdate_per_trial+1,j), _), w, binning = binning, nbin = nbin);
+          double y_pred_mean = mean(y_pred);
+          err += error(wrap(y[j]), wrap(y_pred_mean), error_type2);
+        } else if (cost == "per_trial_mode") {
+          NumericVector y_pred = combine_input(x(Range(j-Nupdate_per_trial+1,j), _), w, binning = binning, nbin = nbin);
+          double y_pred_mode = Mode(y_pred);
+          err += error(wrap(y[j]), wrap(y_pred_mode), error_type2);
+        } else if (cost == "integrate") {
+          NumericVector y_pred = combine_input(x(Range(0,j), _), w, binning = binning, nbin = nbin);
+          err += error(y[Range(0,j)], y_pred, error_type2);
+        } else if (cost == "separated") {
+          if (Nupdate_per_trial > 1){
+            if (j/Nupdate_per_trial >= Nskip_error) {
+              NumericVector y_pred = combine_input(x_err(Range(((j+1)/Nupdate_per_trial - 1)*Nsim_error,((j+1)/Nupdate_per_trial)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
+              double y_pred_mean = mean(y_pred);
+              err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
+            }
+          }
+        } 
+      }
     }
   }
-  err/= ntrain;
+  if (cost != "separated"){
+    err/= ntrain/Nupdate_per_trial;
+  } else{
+    err/= ntrain;
+  }
   if (trace) {
-    List results = List::create(Named("w") = w, _["trace"] = dat_iter);
+    List results = List::create(Named("w") = w , _["err"] = err, _["trace"] = dat_iter);
     return results;
   } else {
     List results = List::create(Named("w") = w , _["err"] = err);
