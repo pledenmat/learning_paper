@@ -5,7 +5,7 @@ Nupdate_per_trial <- 1
 model <- "allpar"
 dt <- .001; sigma <- .1
 binning <- F
-Nsim <- 20
+Nsim <- 1
 
 conditions <- sort(unique(Data$condition))
 difflevels <- sort(unique(Data$difflevel)) # Important to sort to match with drift order
@@ -126,33 +126,36 @@ for (s in 1:length(subs)) {
       par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"cost_ldc"] <- 0.009072
     }
   }
-  if (!file.exists("anal_sim_both_learn_cjfit.Rdata")) {
-    results <-
-      ldc.nn.fit.w(params=c(mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"a0"]),
-                            mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"b0"]),1,
-                            mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"eta_a"]),
-                            mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"eta_b"])),
-                   ddm_params = ddm_params,
-                   obs=temp_dat,returnFit = F,eta_sep=T,
-                   Nupdate_per_trial=Nupdate_per_trial, binning = binning,
-                   dt = dt, sigma = sigma)
-    anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'cj'] <- results$pred
-    anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'alpha'] <- results$trace[,1]
-    anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'beta'] <- results$trace[,2]  
-  }
-  if (!file.exists("anal_sim_both_learn_wrong_resp.Rdata")) {
-    results <-
-      ldc.nn.fit.w(params=c(mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"a0"]),
-                            mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"b0"]),1,
-                            mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"eta_a"]),
-                            mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"eta_b"])),
-                   ddm_params = ddm_params,
-                   obs=temp_dat,returnFit = F,eta_sep=T,
-                   Nupdate_per_trial=Nupdate_per_trial, binning = binning,
-                   dt = dt, sigma = sigma)
-    anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'cj'] <- results$pred
-    anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'alpha'] <- results$trace[,1]
-    anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'beta'] <- results$trace[,2]  
+  for (sim in 1:Nsim) {
+    if (!file.exists("anal_sim_both_learn_cjfit.Rdata")) {
+      results <-
+        ldc.nn.fit.w(params=c(mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"a0"]),
+                              mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"b0"]),1,
+                              mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"eta_a"]),
+                              mean(par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"eta_b"])),
+                     ddm_params = ddm_params,
+                     obs=temp_dat,returnFit = F,eta_sep=T,
+                     Nupdate_per_trial=Nupdate_per_trial, binning = binning,
+                     dt = dt, sigma = sigma)
+      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'cj'] <- results$pred
+      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'alpha'] <- results$trace[,1]
+      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'beta'] <- results$trace[,2]  
+    }
+    if (!file.exists("anal_sim_both_learn_wrong_resp.Rdata")) {
+      results <-
+        ldc.nn.fit.w(params=c(mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"a0"]),
+                              mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"b0"]),1,
+                              mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"eta_a"]),
+                              mean(par_both_learn_wrong_resp[par_both_learn_wrong_resp$sub==subs[s],"eta_b"])),
+                     ddm_params = ddm_params,
+                     obs=temp_dat,returnFit = F,eta_sep=T,
+                     Nupdate_per_trial=Nupdate_per_trial, binning = binning,
+                     dt = dt, sigma = sigma)
+      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'cj'] <- results$pred
+      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'alpha'] <- results$trace[,1]
+      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'beta'] <- results$trace[,2]  
+    }
+    
   }
   
   par_both_learn_fitcj[par_both_learn_fitcj$sub==subs[s],"manip"] <- unique(temp_dat$manip)
