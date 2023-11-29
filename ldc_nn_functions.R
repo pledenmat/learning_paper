@@ -140,18 +140,20 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
                          time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
       }
     }
-    for (trial in seq(1,dim(obs_err)[1],Nsim_error)) {
-      #' Post decision drift rate sign depends on accuracy 
-      if (obs_err[trial,accname] %in% c(1,'correct','cor')) {
-        obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
-          obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
-          DDM_fixed_time(v = drift[difficulty==obs_err[trial,diffname]],
-                         time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
-      }else if (obs_err[trial,accname] %in% c(-1,0,'error','err')) {
-        obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
-          obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
-          DDM_fixed_time(v = - drift[difficulty==obs_err[trial,diffname]],
-                         time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+    if (returnFit) {
+      for (trial in seq(1,dim(obs_err)[1],Nsim_error)) {
+        #' Post decision drift rate sign depends on accuracy 
+        if (obs_err[trial,accname] %in% c(1,'correct','cor')) {
+          obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
+            obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
+            DDM_fixed_time(v = drift[difficulty==obs_err[trial,diffname]],
+                           time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+        }else if (obs_err[trial,accname] %in% c(-1,0,'error','err')) {
+          obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
+            obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
+            DDM_fixed_time(v = - drift[difficulty==obs_err[trial,diffname]],
+                           time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+        }
       }
     }
     
@@ -183,20 +185,19 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
   #' Initialize weights
   w <- params[1:3]
   
-  if (eta_sep) {
-    results <- train_model_eta_sep(x,w,y,y_err=y_err,eta_a=params[4],eta_b=params[5],error_type1 = error_type1,trace=F,
-                           binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
-                           cost=cost,x_err = x_err,Nsim_error=Nsim_error,
-                           error_type2 = error_type2,Nskip_error=Nskip_error)
-    
-  } else {
-    results <- train_model(x,w,y,y_err=y_err,eta=params[4],error_type1 = error_type1,trace=F,
-                           binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
-                           cost=cost,x_err = x_err,Nsim_error=Nsim_error,
-                           error_type2 = error_type2,Nskip_error=Nskip_error)
-  }
-  
   if (returnFit) {
+    if (eta_sep) {
+      results <- train_model_eta_sep(x,w,y,y_err=y_err,eta_a=params[4],eta_b=params[5],error_type1 = error_type1,trace=F,
+                                     binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
+                                     cost=cost,x_err = x_err,Nsim_error=Nsim_error,
+                                     error_type2 = error_type2,Nskip_error=Nskip_error)
+      
+    } else {
+      results <- train_model(x,w,y,y_err=y_err,eta=params[4],error_type1 = error_type1,trace=F,
+                             binning=binning,nbin=nbin,Nupdate_per_trial = Nupdate_per_trial,
+                             cost=cost,x_err = x_err,Nsim_error=Nsim_error,
+                             error_type2 = error_type2,Nskip_error=Nskip_error)
+    }
     return(results$err)
   }else{
     if (!("cj_pred" %in% names(obs_nn))) {
@@ -205,12 +206,12 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     if (eta_sep) {
       results <- train_model_eta_sep(x,w,y,y_err=y_err,eta_a=params[4],eta_b=params[5],error_type1 = error_type1,trace=T,
                              Nupdate_per_trial = Nupdate_per_trial,binning=binning,Nsim_error=Nsim_error,
-                             nbin=nbin,cost=cost,error_type2 = error_type2,x_err=x_err)
+                             nbin=nbin,cost=cost,error_type2 = error_type2)
       
     } else {
       results <- train_model(x,w,y,y_err=y_err,eta=params[4],error_type1 = error_type1,trace=T,
                              Nupdate_per_trial = Nupdate_per_trial,binning=binning,Nsim_error=Nsim_error,
-                             nbin=nbin,cost=cost,error_type2 = error_type2,x_err=x_err)
+                             nbin=nbin,cost=cost,error_type2 = error_type2)
     }
     
     trial_weight <- results$trace[seq(Nupdate_per_trial,dim(obs_nn)[1],Nupdate_per_trial),]
@@ -219,11 +220,8 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
         combine_input(matrix(x[(Nupdate_per_trial*(trial-1)+1):(Nupdate_per_trial*trial),],ncol=3),
                       c(trial_weight[trial,c(1,2)],1),binning=binning,nbin=nbin)
     }
-    # obs_nn$cj_pred <- combine_input(x,results$w,binning=binning,nbin=nbin)
     if (aggreg_pred=="mean") {
       y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),mean))$x
-    } else if (aggreg_pred=="mode"){
-      y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),Mode))$x
     }
     return(list(pred=y_pred,trace=trial_weight))
   }

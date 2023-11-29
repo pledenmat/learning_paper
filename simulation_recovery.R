@@ -406,6 +406,14 @@ mean_bic[mean_bic$manip=="beta","delta"] <-
   mean_bic[mean_bic$manip=="beta",]$x -
   min(mean_bic[mean_bic$manip=="beta",]$x)
 
+bic <- with(mean_bic,aggregate(delta,list(model),mean))
+names(bic) <- c('model','delta')
+bic_order <- c('no','alpha','beta','both','bin','bin_mid','ev_unknown')
+bic$model <- factor(bic$model, levels = bic_order)
+bic <- bic[order(bic$model),]
+barplot(bic[1:4,]$delta,names.arg = bic_order[1:4],xlab="Model (learning rate)", ylab = "BIC")
+barplot(bic[c(4,5,7),]$delta,names.arg = c("continuous","binned","ev unknown"),
+        xlab="Model (2 learning rates)", ylab = "BIC")
 # Scatterplot generative/recovered parameters from selected models -----------------------------
 gen_par_alpha_learn <- aggregate(cbind(a0,b0,eta_a,eta_b) ~ sub, data = gen_par_alpha_learn,mean)
 

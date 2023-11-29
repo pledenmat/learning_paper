@@ -137,9 +137,9 @@ for (s in 1:length(subs)) {
                      obs=temp_dat,returnFit = F,eta_sep=T,
                      Nupdate_per_trial=Nupdate_per_trial, binning = binning,
                      dt = dt, sigma = sigma)
-      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'cj'] <- results$pred
-      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'alpha'] <- results$trace[,1]
-      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==i&anal_sim_both_learn_cjfit$sub==subs[s] ,'beta'] <- results$trace[,2]  
+      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==sim&anal_sim_both_learn_cjfit$sub==subs[s] ,'cj'] <- results$pred
+      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==sim&anal_sim_both_learn_cjfit$sub==subs[s] ,'alpha'] <- results$trace[,1]
+      anal_sim_both_learn_cjfit[anal_sim_both_learn_cjfit$sim==sim&anal_sim_both_learn_cjfit$sub==subs[s] ,'beta'] <- results$trace[,2]  
     }
     if (!file.exists("anal_sim_both_learn_wrong_resp.Rdata")) {
       results <-
@@ -151,9 +151,9 @@ for (s in 1:length(subs)) {
                      obs=temp_dat,returnFit = F,eta_sep=T,
                      Nupdate_per_trial=Nupdate_per_trial, binning = binning,
                      dt = dt, sigma = sigma)
-      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'cj'] <- results$pred
-      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'alpha'] <- results$trace[,1]
-      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==i&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'beta'] <- results$trace[,2]  
+      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==sim&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'cj'] <- results$pred
+      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==sim&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'alpha'] <- results$trace[,1]
+      anal_sim_both_learn_wrong_resp[anal_sim_both_learn_wrong_resp$sim==sim&anal_sim_both_learn_wrong_resp$sub==subs[s] ,'beta'] <- results$trace[,2]  
     }
     
   }
@@ -469,22 +469,20 @@ polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - con
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 # Plot parameter traces 
-par_higheta <- subset(par,eta_a>10000)
-
 plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
 minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
 
 # Plot trace alpha experiment
 alpha_trace <- with(Data_alpha,aggregate(alpha_both_learn_fitcj,by=list(sub=sub,trial=trial,condition=condition),mean))
 alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub ~trial, value = "x", fun.aggregate = mean)
-alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first & !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first ),sub~trial, value = "x", fun.aggregate = mean)
 count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
 count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y)))))
 count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-     ylim = c(0,5),bty='n')
+     ylim = c(0,20),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
@@ -499,9 +497,9 @@ polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) +
 
 beta_trace <- with(Data_alpha,aggregate(beta_both_learn_fitcj,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
-beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first),sub~trial, value = "x", fun.aggregate = mean)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(0,30),bty='n')
+     ylim=c(5,15),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
@@ -520,14 +518,14 @@ minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
 
 alpha_trace <- with(Data_beta,aggregate(alpha_both_learn_fitcj,by=list(sub=sub,trial=trial,condition=condition),mean))
 alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
-alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first),sub~trial, value = "x", fun.aggregate = mean)
 count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
 count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y)))))
 count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-     ylim=c(0,5),bty='n')
+     ylim=c(0,20),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
@@ -542,9 +540,9 @@ polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) +
 
 beta_trace <- with(Data_beta,aggregate(beta_both_learn_fitcj,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
-beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first),sub~trial, value = "x", fun.aggregate = mean)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(0,30),bty='n')
+     ylim=c(5,15),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
@@ -763,22 +761,20 @@ polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - con
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
 
 # Plot parameter traces 
-par_higheta <- subset(par,eta_a>10000)
-
 plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
 minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
 
 # Plot trace alpha experiment
 alpha_trace <- with(Data_alpha,aggregate(alpha_both_learn_wrong_resp,by=list(sub=sub,trial=trial,condition=condition),mean))
 alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub ~trial, value = "x", fun.aggregate = mean)
-alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first & !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first ),sub~trial, value = "x", fun.aggregate = mean)
 count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
 count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y)))))
 count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-     ylim = c(0,5),bty='n')
+     ylim = c(0,20),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
@@ -793,9 +789,9 @@ polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) +
 
 beta_trace <- with(Data_alpha,aggregate(beta_both_learn_wrong_resp,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
-beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first),sub~trial, value = "x", fun.aggregate = mean)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(0,30),bty='n')
+     ylim=c(5,15),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
@@ -814,14 +810,14 @@ minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
 
 alpha_trace <- with(Data_beta,aggregate(alpha_both_learn_wrong_resp,by=list(sub=sub,trial=trial,condition=condition),mean))
 alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
-alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first),sub~trial, value = "x", fun.aggregate = mean)
 count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
 count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y)))))
 count_plus <- count_plus[2:length(count_plus)]
 count_minus <- count_minus[2:length(count_minus)]
 
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-     ylim=c(0,5),bty='n')
+     ylim=c(0,20),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
@@ -836,9 +832,9 @@ polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) +
 
 beta_trace <- with(Data_beta,aggregate(beta_both_learn_wrong_resp,by=list(sub=sub,trial=trial,condition=condition),mean))
 beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "x", fun.aggregate = mean)
-beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first& !(sub %in% par_higheta$sub)),sub~trial, value = "x", fun.aggregate = mean)
+beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first),sub~trial, value = "x", fun.aggregate = mean)
 plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-     ylim=c(0,30),bty='n')
+     ylim=c(5,15),bty='n')
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
 lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
 polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
@@ -852,3 +848,94 @@ polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_plus,na.rm=T) +
 
 dev.off()
 
+
+hist(par_both_learn_fitcj$eta_a)
+hist(par_both_learn_fitcj$eta_b)
+hist(par_both_learn_fitcj$a0)
+hist(par_both_learn_fitcj$b0)
+
+# Diagnostic --------------------------------------------------------------
+beta_input <- .1
+Nupdate_per_trial <- 1
+Nsim_err <- 1000
+# bound, ter, z, vratio, drifts
+dt <- .001; sigma <- .1
+error_type1 <- "cross-entropy"
+error_type2 <- "mse"
+target <- "fb"
+fitname <- 'cj'
+
+s <- Nsub
+fitted_par <- colMeans(subset(par_both_learn_fitcj,sub==subs[s])[,c("a0","b0","eta_a","eta_b")])
+fitted_par <- c(fitted_par[1:2],1,fitted_par[3:4])
+og_cost <- mean(subset(par_both_learn_fitcj,sub==subs[s])$cost_ldc)
+ddm_file <- paste0('ddm/ddmfit_',subs[s],'.Rdata')
+if(file.exists(ddm_file)){ load(ddm_file) }
+ddm_params <- ddm.results$optim$bestmem[c(1,5:length(ddm.results$optim$bestmem))]
+obs <- subset(Data,sub==subs[s])
+obs$ev <- as.numeric(str_sub(obs$ev,2,-2))
+# First check that the cost is the same when computed by hand
+err <- ldc.nn.fit.w(params=fitted_par,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000,
+                    Nupdate_per_trial=1,returnFit=T,estimate_evidence = T,
+                    confRTname="RTconf",diffname="difflevel",respname="resp",
+                    totRTname='rt2',targetname='fb',accname='cor',beta_input=.1,
+                    error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
+                    shuffle=F,cost="separated",aggreg_pred="mean",Nskip_error=0,
+                    eta_sep=T, fitname='cj')
+err/og_cost
+# Now try some other parameterization
+params <- c(fitted_par[1:3],0,-10)
+params <- fitted_par
+err_explo <- ldc.nn.fit.w(params=params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000,
+                    Nupdate_per_trial=1,returnFit=T,estimate_evidence = T,
+                    confRTname="RTconf",diffname="difflevel",respname="resp",
+                    totRTname='rt2',targetname='fb',accname='cor',beta_input=.1,
+                    error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
+                    shuffle=F,cost="separated",aggreg_pred="mean",Nskip_error=0,
+                    eta_sep=T, fitname='cj')
+err_explo/err
+
+colmap <- viridis::viridis(10000)
+summary(obs_nn$diff)
+j <- 0
+y_pred = combine_input(x_err[((j*Nsim_error +1):((j+1)*Nsim_error)),], w, binning = binning, nbin = nbin)
+y_pred_mean = mean(y_pred)
+err_it <- error(y_err[j+1], y_pred_mean, error_type2)
+with(Data,aggregate(cj_pred_both_learn_fitcj,list(cor,condition),mean))
+with(Data,aggregate(cj,list(cor,condition),mean))
+
+ggplot(obs_nn, aes(x = ev_adj, y = evidence, colour = diff)) +
+  geom_point() + scale_color_viridis(limits=c(-1,1))
+
+
+plot(obs_nn$ev_adj~obs_nn$evidence, )
+
+estimate_evidence = T;
+confRTname="RTconf";diffname="difflevel";respname="resp";
+totRTname='rt2';targetname='fb';accname='cor';beta_input=.1;
+error_type1='cross-entropy';error_type2='mse';binning=F;nbin=6;
+shuffle=F;cost="separated";aggreg_pred="mean";Nskip_error=0;
+eta_sep=T; fitname='cj';Nsim_error=1000
+returnFit=T
+
+with(obs_nn,aggregate(evidence,list(cor,difflevel,response),mean))
+with(obs_nn,aggregate(ev,list(cor,difflevel,response),mean))
+test <- with(obs_err,aggregate(evidence,list(cor,difflevel,response),mean))
+m <- lm(data = obs_err, evidence ~ response*cor*difflevel)
+Anova(m,type = 3)
+
+params[1:2] <- c(0,0)
+j <- 0
+y_pred = combine_input(x_err[(j*Nsim_error+1):((j+1)*Nsim_error),], w, binning = binning, nbin = nbin)
+y_pred_mean = mean(y_pred)
+err = error(y_err[j+1], y_pred_mean, error_type2);
+library(DEoptim)
+optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
+                          obs = obs,
+                          lower = c(0,-100,1,0,0), 
+                          upper = c(50,100,1,10000,10000),
+                          Nupdate_per_trial=Nupdate_per_trial,
+                          dt = dt, sigma = sigma,binning=binning,eta_sep=T,
+                          Nsim_err=Nsim_err,error_type1=error_type1,fitname="fb",
+                          error_type2=error_type2,targetname=target,cost="separated",
+                          control=c(itermax=1000,steptol=70,reltol=.00001,NP=40))
