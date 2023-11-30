@@ -960,53 +960,63 @@ if (stat_tests) {
   emm <- emmeans(m.cond.cor, ~ condition | cor)
   pairs(emm)
 }
+Nphase_trial <- length(unique(Data$withinphasetrial))
+Nphase_block <- 18
+Data$phase_block <-  Data$withinphasetrial %/% (Nphase_trial/Nphase_block)
+Data$phase_block <- as.factor(Data$phase_block)
+
 
 # Aggregating behavior
 Nalpha <- length(unique(Data_alpha$sub))
 Nbeta <- length(unique(Data_beta$sub))
-conf_group <- with(Data,aggregate(cj,by=list(phase_block,manip,condition,cor),mean))
-conf_group_sd <- with(Data,aggregate(cj,by=list(phase_block,manip,condition,cor),sd))
-names(conf_group) <- c('phase_block','manip','condition','cor','cj')
-names(conf_group_sd) <- c('phase_block','manip','condition','cor','cj')
+conf_group <- with(Data,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
+names(conf_group) <- c('phase_block','manip','sub','condition','cor','cj')
 
-conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor)
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor)
-conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
-conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
-conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition + cor)
-conf_beta_sd <- subset(conf_group_sd,manip=='beta')
-conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
-conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition + cor)
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
+                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),sub=rep(subs,each=Nphase_block*4))
+
+conf_group <- merge(conf_group,trials_phase,all=T)
+conf_group[conf_group$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
+conf_group[conf_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
+table(complete.cases(conf_group$cj))
+count_complete <- function(dat) {
+  return(sum(complete.cases(dat)))
+}
+
+conf_alpha_count <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,count_complete)
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_alpha_sd <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_alpha_sd[,2:5] <- conf_alpha_sd[,2:5]/sqrt(conf_alpha_count[,2:5])
+# conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
+# conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
+# conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition + cor, fun.aggregate = mean, na.rm=T)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,count_complete)
+conf_beta_sd <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_sd[,2:5] <- conf_beta_sd[,2:5]/sqrt(conf_beta_count[,2:5])
 
 # Aggregating model fits
-conf_group_pred <- with(Data,aggregate(cj_pred,by=list(phase_block,manip,condition,cor),mean))
-conf_group_pred_sd <- with(Data,aggregate(cj_pred,by=list(phase_block,manip,condition,cor),sd))
-names(conf_group_pred) <- c('phase_block','manip','condition','cor','cj')
-names(conf_group_pred_sd) <- c('phase_block','manip','condition','cor','cj')
+conf_group_pred <- with(Data,aggregate(cj_pred_both_learn_fitcj,by=list(phase_block,manip,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
 
-conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor)
-conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor)
-conf_alpha_pred_sd <- subset(conf_group_pred_sd,manip=='alpha')
-conf_alpha_pred_sd$cj <- conf_alpha_pred_sd$cj/sqrt(Nalpha)
-conf_alpha_pred_sd <- cast(conf_alpha_pred_sd, phase_block ~ condition + cor)
-conf_beta_pred_sd <- subset(conf_group_pred_sd,manip=='beta')
-conf_beta_pred_sd$cj <- conf_beta_pred_sd$cj/sqrt(Nbeta)
-conf_beta_pred_sd <- cast(conf_beta_pred_sd, phase_block ~ condition + cor)
+conf_alpha_pred_count <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor)
+conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_alpha_pred_sd <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_alpha_pred_sd[,2:5] <- conf_alpha_pred_sd[,2:5]/sqrt(conf_alpha_pred_count[,2:5])
+
+conf_beta_pred_count <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor)
+conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
 
 xlen <- nrow(conf_alpha)
-tiff('trace_aggreg_cor.tiff', width = 36, height = 9, units = 'cm', res = 300)
-layout(matrix(c(1,3,2,4),ncol=2),heights=c(1,7))
-par(mar=c(0,0,0,0))
-plot.new()
-title(cex.main=cex.title*.66/.83,line=title_line+1,main = expression(paste(alpha,"-Manipulated Feedback")))
-plot.new()
-title(cex.main=cex.title*.66/.83,line=title_line+1,main = expression(paste(beta,"-Manipulated Feedback")))
-par(mar=c(4,5,0,1.1)+.1)
+go_to("plots")
+tiff('trace_aggreg_cor_fitcj_alpha.tiff', width = 36, height = 36, units = 'cm', res = 300)
 
-plot(conf_alpha$minus_0,ylim=c(.7,.9),main='',col = BLUE, type = 'b',
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",
-     xlab = "Trials",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis*.66/.83)
+plot(conf_alpha$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',main=expression(paste(alpha,"-Manipulated Feedback")),
+     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
 lines(conf_alpha$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
 lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
 lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
@@ -1030,14 +1040,17 @@ polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
 polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
                            (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend("bottom",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
        pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
 
+dev.off()
 
-plot(conf_beta$minus_0,ylim=c(.7,.9),main='',col = BLUE, type = 'b',
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",
-     xlab = "Trials",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis*.66/.83)
+tiff('trace_aggreg_cor_fitcj_beta.tiff', width = 36, height = 36, units = 'cm', res = 300)
+
+plot(conf_beta$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',main=expression(paste(beta,"-Manipulated Feedback")),
+     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
 lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
 lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
 lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
