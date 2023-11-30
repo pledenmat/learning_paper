@@ -929,38 +929,35 @@ for(i in 1:length(x_coord)){
 abline(lm(Data$cj~Data$cj_pred)$coef[1],lm(Data$cj~Data$cj_pred)$coef[2]/6)
 dev.off()
 
-# Split trials in each phase in 4 -----------------------------------------
+# Split trials in each phase -----------------------------------------
 if (stat_tests) {
-  
-  m.int <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (1|sub),REML = F)
-  m.cond <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
+  m.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
+  m.cond <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
   anova(m.int,m.cond)
-  m.cond.cor <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
+  m.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
+                  control = lmerControl(optimizer='bobyqa'))
+  m.cond.cor2 <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
   anova(m.cond,m.cond.cor)
+  m.cond.cor.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
+  m.cond.cor.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
+                         control = lmerControl(optimizer='bobyqa'))
+  anova(m.cond.cor,m.cond.cor.int)
   anova(m.cond.cor)
-  emm <- emmeans(m.cond.cor, ~ condition | phase_block)
-  pairs(emm)
-  emm <- emmeans(m.cond.cor, ~ phase_block | condition)
-  pairs(emm)
-  Data_alpha$phase_block <- as.numeric(Data_alpha$phase_block)
-  m.cond.cor.cont <- lmer(data = Data_alpha, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
-  anova(m.cond.cor.cont)
-  emm <- emmeans(m.cond.cor.cont, ~ condition | phase_block)
-  pairs(emm)
-  emm <- emmeans(m.cond.cor.cont, ~ condition)
-  pairs(emm)
-  emm <- emmeans(m.cond.cor.cont, ~ phase_block)
-  pairs(emm)
-  m.cond.cor.cont2 <- lmer(data = subset(Data_alpha,phase>0), cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
-  anova(m.cond.cor.cont2)
   
-  m.int <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (1|sub),REML = F)
-  m.cond <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition|sub),REML = F)
+  
+  m.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
+  m.cond <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
   anova(m.int,m.cond)
-  m.cond.cor <- lmer(data = Data_beta, cj ~ condition*phase_block*cor + (condition+cor|sub),REML = F)
+  m.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
+                  control = lmerControl(optimizer='bobyqa'))
+  m.cond.cor <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
   anova(m.cond,m.cond.cor)
+  m.cond.cor.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
+  m.cond.cor.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
+                         control = lmerControl(optimizer='bobyqa'))
+  anova(m.cond.cor,m.cond.cor.int)
   anova(m.cond.cor)
-  emm <- emmeans(m.cond.cor, ~ condition | cor | phase_block)
+  emm <- emmeans(m.cond.cor, ~ condition | cor)
   pairs(emm)
 }
 

@@ -485,7 +485,22 @@ plot(par_ev_unknown$eta_b ~ gen_par_alpha_learn$eta_b, bty='n', xlab = "Generati
      main = paste("eta_b, r =",round(cor(par_ev_unknown$eta_b, gen_par_alpha_learn$eta_b),3)))
 abline(coef=c(0,1))
 
+# Evidence unknown
+plot(par_mean_ev$a0 ~ gen_par_alpha_learn$a0, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("a0, r =",round(cor(par_mean_ev$a0, gen_par_alpha_learn$a0),3)))
+abline(coef=c(0,1))
 
+plot(par_mean_ev$b0 ~ gen_par_alpha_learn$b0, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("b0, r =",round(cor(par_mean_ev$b0, gen_par_alpha_learn$b0),3)))
+abline(coef=c(0,1))
+
+plot(par_mean_ev$eta_a ~ gen_par_alpha_learn$eta_a, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("eta_a, r =",round(cor(par_mean_ev$eta_a, gen_par_alpha_learn$eta_a),3)))
+abline(coef=c(0,1))
+
+plot(par_mean_ev$eta_b ~ gen_par_alpha_learn$eta_b, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("eta_b, r =",round(cor(par_mean_ev$eta_b, gen_par_alpha_learn$eta_b),3)))
+abline(coef=c(0,1))
 
 # Investigate the beta learning rate clusters -----------------------------
 test <- subset(par_ev_unknown,eta_b < 100)
