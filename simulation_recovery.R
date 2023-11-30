@@ -135,7 +135,7 @@ for (s in 1:Nsub) {
 
 # Save generated datasets
 simDat_alpha$RTconf <- simDat_alpha$rt2 - simDat_alpha$rt 
-write.csv(simDat_alpha,"simDat_alpha.csv",row.names = F)
+write.csv(simDat_alpha,"simDat_alpha2.csv",row.names = F)
 # write.csv(simDat_both,"simDat_both.csv",row.names = F)
 # Fit models --------------------------------------------------------------
 beta_input <- .1
@@ -160,9 +160,10 @@ par_bin <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                       sub = subs, manip=NA, model = "bin",Npar = 4,family = "binned_conf")
 par_bin_mid <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                           sub = subs,manip=NA, model = "bin_mid",Npar = 4,family = "binned_conf")
-
 par_ev_unknown <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                              sub = subs,manip=NA, model = "ev_unknown",Npar = 4,family = "ev_unknown")
+par_mean_ev <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
+                             sub = subs,manip=NA, model = "mean_ev",Npar = 4,family = "ev_unknown")
 
 
 simDat_alpha_bin <- simDat_alpha
@@ -345,16 +346,27 @@ for (s in 1:Nsub) {
     par_ev_unknown[par_ev_unknown$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
     par_ev_unknown[par_ev_unknown$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   }
+  
+  ldc_file_mean_ev <- paste0('fit/alternating_fb/ldc_nn/recovery/evidence_unknown/mean_ev/sim_alpha_learn/ldcfit_',subs[s],'.Rdata')
+  if (file.exists(ldc_file_mean_ev)) {
+    load(ldc_file_mean_ev)
+    par_mean_ev[par_mean_ev$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
+    par_mean_ev[par_mean_ev$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
+    par_mean_ev[par_mean_ev$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
+    par_mean_ev[par_mean_ev$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
+    par_mean_ev[par_mean_ev$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
+    par_mean_ev[par_mean_ev$sub==subs[s],"manip"] <- unique(temp_dat$manip)
+  }
+  
   par_bin[par_bin$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_bin_mid[par_bin_mid$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_both_learn[par_both_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_beta_learn[par_beta_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_alpha_learn[par_alpha_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_no_learn[par_no_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  par_ev_unknown[par_ev_unknown$sub==subs[s],"manip"] <- unique(temp_dat$manip)
 }
 par <- rbind(par_alpha_learn,par_beta_learn,par_both_learn,par_no_learn,
-             par_bin,par_bin_mid,par_ev_unknown)
+             par_bin,par_bin_mid,par_ev_unknown,par_mean_ev)
 par$Ndata_point <- round(nrow(Data)/Nsub)
 
 # Plot parameters ------------------------------------------
