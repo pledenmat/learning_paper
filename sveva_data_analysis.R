@@ -295,11 +295,11 @@ if (stat_tests) {
   pairs(emm)
   vif(m.beta.condxphasexcor)
   
-  
+  test <- Data_alpha[,c("condition","cor","phase_block","cj")]
+cor(test)
 
 }
-test <- Data_alpha[,c("condition","cor","phase_block","cj")]
-cor(test)
+
 # Plot Feedback presented ------------------------------------------------
 if (plots) {
   go_to("plots")

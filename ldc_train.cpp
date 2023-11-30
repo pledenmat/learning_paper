@@ -104,6 +104,11 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, NumericVect
   NumericMatrix dat_iter(ntrain, 3);
   
   for (int j = 0; j < ntrain; j++) {
+    if (!trace){
+      NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
+      double y_pred_mean = mean(y_pred);
+      err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
+    } 
     double pred_j = combine_input_1trial(x(j, _), w, binning = binning, nbin = nbin);
     // Update weights (time gradient is fixed to 0)
     NumericVector g = grad(x(j, _), y[j], pred_j, error_type1);
@@ -117,23 +122,9 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, NumericVect
       Rcout << "     -> beta: " << w[1] << "\n";
     }
     if (trace) {
-      // Calculate error for current parameter values and store in data frame
-      //double y_pred = combine_input_1trial(x(j,_), w, binning = binning, nbin = nbin);
-      //double err = error(y[j], y_pred, error_type);
       dat_iter(j, 0) = w[0];
       dat_iter(j, 1) = w[1];
-      //dat_iter(j, 2) = err;
-      //if (Nupdate_per_trial == 1){
-        //NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
-        //double y_pred_mean = mean(y_pred);
-        //dat_iter(j, 2) = y_pred_mean;
-      //}
     }
-    if (!trace){
-      NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
-      double y_pred_mean = mean(y_pred);
-      err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
-    } 
   }
   err/= ntrain;
   if (trace) {
@@ -159,6 +150,14 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, Num
   NumericMatrix dat_iter(ntrain, 3);
   
   for (int j = 0; j < ntrain; j++) {
+    if (trace) {
+      dat_iter(j, 0) = w[0];
+      dat_iter(j, 1) = w[1];
+    } else {
+      NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
+      double y_pred_mean = mean(y_pred);
+      err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
+    } 
     // Compute confidence prediction
     double pred_j = combine_input_1trial(x(j, _), w, binning = binning, nbin = nbin);
     // Update weights (time gradient is fixed to 0)
@@ -171,14 +170,6 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, Num
       Rcout << "  -> updating data point " << j + 1 << " :\n";
       Rcout << "     -> alpha: " << w[0] << "\n";
       Rcout << "     -> beta: " << w[1] << "\n";
-    }
-    if (trace) {
-      dat_iter(j, 0) = w[0];
-      dat_iter(j, 1) = w[1];
-    } else {
-      NumericVector y_pred = combine_input(x_err(Range(j*Nsim_error,(j+1)*Nsim_error-1), _), w, binning = binning, nbin = nbin);
-      double y_pred_mean = mean(y_pred);
-      err += error(wrap(y_err[j]), wrap(y_pred_mean), error_type2);
     }
   }
   err/= ntrain;

@@ -103,7 +103,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
                          totRTname='rt2',targetname='fb',accname='cor',beta_input=.1,
                          error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
                          shuffle=F,cost="separated",aggreg_pred="mean",Nskip_error=0,
-                         eta_sep=F, fitname='cj'){
+                         eta_sep=F, fitname='cj',x_err=NULL,mean_ev=F){
   #' Step 1 : Use DDM bound and drift rate to infer evidence accumulated at each trial
   #' Step 2 : Gradiant descent 
   #' Step 3 : Global cost is DDM cost + NN cost
@@ -125,34 +125,40 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     #' of estimating single trial evidence accumulation process 
     obs_nn <- obs[rep(seq_len(nrow(obs)), each=Nupdate_per_trial), ]
     obs_err <- obs[rep(seq_len(nrow(obs)), each=Nsim_error), ]
-    
-    for (trial in seq(1,dim(obs_nn)[1],Nupdate_per_trial)) {
-      #' Post decision drift rate sign depends on accuracy 
-      if (obs_nn[trial,accname] %in% c(1,'correct','cor')) {
-        obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
-          obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
-          DDM_fixed_time(v = drift[difficulty==obs_nn[trial,diffname]],
-                         time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
-      }else if (obs_nn[trial,accname] %in% c(-1,0,'error','err')) {
-        obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
-          obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
-          DDM_fixed_time(v = - drift[difficulty==obs_nn[trial,diffname]],
-                         time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
+    if (mean_ev) {
+      obs_nn$evidence <- obs_nn$evidence + (as.numeric(obs_nn$cor)-1.5)*2 * obs_nn$drift * obs_nn[,confRTname] # Add evidence if correct, deduce if error
+    } else {
+      for (trial in seq(1,dim(obs_nn)[1],Nupdate_per_trial)) {
+        #' Post decision drift rate sign depends on accuracy 
+        if (obs_nn[trial,accname] %in% c(1,'correct','cor')) {
+          obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
+            obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
+            DDM_fixed_time(v = drift[difficulty==obs_nn[trial,diffname]],
+                           time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
+        }else if (obs_nn[trial,accname] %in% c(-1,0,'error','err')) {
+          obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
+            obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
+            DDM_fixed_time(v = - drift[difficulty==obs_nn[trial,diffname]],
+                           time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
+        }
       }
+      
     }
     if (returnFit) {
-      for (trial in seq(1,dim(obs_err)[1],Nsim_error)) {
-        #' Post decision drift rate sign depends on accuracy 
-        if (obs_err[trial,accname] %in% c(1,'correct','cor')) {
-          obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
-            obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
-            DDM_fixed_time(v = drift[difficulty==obs_err[trial,diffname]],
-                           time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
-        }else if (obs_err[trial,accname] %in% c(-1,0,'error','err')) {
-          obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
-            obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
-            DDM_fixed_time(v = - drift[difficulty==obs_err[trial,diffname]],
-                           time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+      if (is.null(x_err)) {
+        for (trial in seq(1,dim(obs_err)[1],Nsim_error)) {
+          #' Post decision drift rate sign depends on accuracy 
+          if (obs_err[trial,accname] %in% c(1,'correct','cor')) {
+            obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
+              obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
+              DDM_fixed_time(v = drift[difficulty==obs_err[trial,diffname]],
+                             time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+          }else if (obs_err[trial,accname] %in% c(-1,0,'error','err')) {
+            obs_err[trial:(trial+Nsim_error-1),'evidence'] <- 
+              obs_err[trial:(trial+Nsim_error-1),'evidence'] + 
+              DDM_fixed_time(v = - drift[difficulty==obs_err[trial,diffname]],
+                             time=obs_err[trial,confRTname],ntrials=Nsim_error,s=sigma,dt=dt)[,1]
+          }
         }
       }
     }
@@ -172,10 +178,11 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
   x = matrix(c(obs_nn$evidence, #ev
                rep(beta_input,dim(obs_nn)[1]), #bias
                1/sqrt(obs_nn[,totRTname])),  ncol=3) #time
-
-  x_err = matrix(c(obs_err$evidence, #ev
-               rep(beta_input,dim(obs_err)[1]), #bias
-               1/sqrt(obs_err[,totRTname])),  ncol=3) #time
+  if (is.null(x_err)) {
+    x_err = matrix(c(obs_err$evidence, #ev
+                     rep(beta_input,dim(obs_err)[1]), #bias
+                     1/sqrt(obs_err[,totRTname])),  ncol=3) #time
+  }
   
   #' Output (confidence)
   y = obs_nn[,targetname] 
@@ -223,6 +230,6 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     if (aggreg_pred=="mean") {
       y_pred <- with(obs_nn,aggregate(cj_pred,by=list(trial),mean))$x
     }
-    return(list(pred=y_pred,trace=trial_weight))
+    return(list(pred=y_pred,trace=trial_weight,x=x,y=y,y_err=y_err,obs_nn=obs_nn))
   }
 }

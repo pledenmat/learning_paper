@@ -1,3 +1,4 @@
+library(stringr)
 # Retrieve fits -----------------------------------------------------------
 # Some fixed arguments
 beta_input <- .1
@@ -5,7 +6,7 @@ Nupdate_per_trial <- 1
 model <- "allpar"
 dt <- .001; sigma <- .1
 binning <- F
-Nsim <- 1
+Nsim <- 20
 
 conditions <- sort(unique(Data$condition))
 difflevels <- sort(unique(Data$difflevel)) # Important to sort to match with drift order
@@ -168,6 +169,7 @@ if (!file.exists("anal_sim_both_learn_wrong_resp.Rdata")) {
 if (!file.exists("anal_sim_both_learn_cjfit.Rdata")) {
   save(anal_sim_both_learn_cjfit,file="anal_sim_both_learn_cjfit.Rdata")
 }
+anal_sim_both_learn_cjfit_save <- anal_sim_both_learn_cjfit
 load("anal_sim_both_learn_cjfit.Rdata")
 load("anal_sim_both_learn_wrong_resp.Rdata")
 
@@ -191,6 +193,7 @@ anal_sim_both_learn_wrong_resp_mean <- merge(merge(cj_pred,alpha),beta)
 Data <- Data[,!(names(Data) %in% c ("cj_pred_both_learn_wrong_resp","alpha_both_learn_wrong_resp","beta_both_learn_wrong_resp"))]
 Data <- merge(Data,anal_sim_both_learn_wrong_resp_mean)
 
+Data <- Data[order(Data$sub,Data$trial),]
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
 
@@ -278,7 +281,7 @@ cex.axis <- 2
 cex.legend <- 2
 go_to("plots")
 go_to("alternating_fb")
-go_to("trim_skip")
+go_to("trim")
 
 jpeg(filename = "traces_both_learn_fitcj_fitcj.jpg",units = 'cm',width = 42,height = 30,res=300)
 # layout(matrix(c(1,1,3,3,2,2,4,4,5,6,7,8),ncol=3))
@@ -570,7 +573,7 @@ cex.axis <- 2
 cex.legend <- 2
 go_to("plots")
 go_to("alternating_fb")
-go_to("trim_skip")
+go_to("trim")
 
 jpeg(filename = "traces_both_learn_wrong_resp.jpg",units = 'cm',width = 42,height = 30,res=300)
 # layout(matrix(c(1,1,3,3,2,2,4,4,5,6,7,8),ncol=3))
@@ -848,6 +851,9 @@ polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_plus,na.rm=T) +
 
 dev.off()
 
+# Plot estimated parameters -----------------------------------------------
+
+
 
 hist(par_both_learn_fitcj$eta_a)
 hist(par_both_learn_fitcj$eta_b)
@@ -884,29 +890,28 @@ err <- ldc.nn.fit.w(params=fitted_par,obs,ddm_params,dt=.001,sigma=0.1,Nsim_erro
                     eta_sep=T, fitname='cj')
 err/og_cost
 # Now try some other parameterization
-params <- c(fitted_par[1:3],0,-10)
-params <- fitted_par
+params <- c(fitted_par[1:3],100,100)
 err_explo <- ldc.nn.fit.w(params=params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000,
                     Nupdate_per_trial=1,returnFit=T,estimate_evidence = T,
                     confRTname="RTconf",diffname="difflevel",respname="resp",
                     totRTname='rt2',targetname='fb',accname='cor',beta_input=.1,
                     error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
                     shuffle=F,cost="separated",aggreg_pred="mean",Nskip_error=0,
-                    eta_sep=T, fitname='cj')
-err_explo/err
-
-colmap <- viridis::viridis(10000)
-summary(obs_nn$diff)
-j <- 0
-y_pred = combine_input(x_err[((j*Nsim_error +1):((j+1)*Nsim_error)),], w, binning = binning, nbin = nbin)
-y_pred_mean = mean(y_pred)
-err_it <- error(y_err[j+1], y_pred_mean, error_type2)
-with(Data,aggregate(cj_pred_both_learn_fitcj,list(cor,condition),mean))
-with(Data,aggregate(cj,list(cor,condition),mean))
-
-ggplot(obs_nn, aes(x = ev_adj, y = evidence, colour = diff)) +
-  geom_point() + scale_color_viridis(limits=c(-1,1))
-
+                    eta_sep=T, fitname='fb')
+err_explo/og_cost
+# 
+# colmap <- viridis::viridis(10000)
+# summary(obs_nn$diff)
+# j <- 0
+# y_pred = combine_input(x_err[((j*Nsim_error +1):((j+1)*Nsim_error)),], w, binning = binning, nbin = nbin)
+# y_pred_mean = mean(y_pred)
+# err_it <- error(y_err[j+1], y_pred_mean, error_type2)
+# with(Data,aggregate(cj_pred_both_learn_fitcj,list(cor,condition),mean))
+# with(Data,aggregate(cj,list(cor,condition),mean))
+# 
+# ggplot(obs_nn, aes(x = ev_adj, y = evidence, colour = diff)) +
+#   geom_point() + scale_color_viridis(limits=c(-1,1))
+# 
 
 plot(obs_nn$ev_adj~obs_nn$evidence, )
 
@@ -929,6 +934,8 @@ j <- 0
 y_pred = combine_input(x_err[(j*Nsim_error+1):((j+1)*Nsim_error),], w, binning = binning, nbin = nbin)
 y_pred_mean = mean(y_pred)
 err = error(y_err[j+1], y_pred_mean, error_type2);
+
+obs$cj <- obs$cj - 1/12
 library(DEoptim)
 optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
                           obs = obs,
@@ -936,6 +943,10 @@ optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params,
                           upper = c(50,100,1,10000,10000),
                           Nupdate_per_trial=Nupdate_per_trial,
                           dt = dt, sigma = sigma,binning=binning,eta_sep=T,
-                          Nsim_err=Nsim_err,error_type1=error_type1,fitname="fb",
+                          Nsim_err=Nsim_err,error_type1=error_type1,fitname="cj",
                           error_type2=error_type2,targetname=target,cost="separated",
                           control=c(itermax=1000,steptol=70,reltol=.00001,NP=40))
+obs_nn$cj
+plot(obs_nn$cj_pred)
+with(obs_nn,aggregate(cj,list(difflevel,cor),mean))
+with(obs_nn,aggregate(cj_pred,list(difflevel,cor),mean))
