@@ -498,10 +498,7 @@ plot(par_mean_ev$eta_a ~ gen_par_alpha_learn$eta_a, bty='n', xlab = "Generative"
      main = paste("eta_a, r =",round(cor(par_mean_ev$eta_a, gen_par_alpha_learn$eta_a),3)))
 abline(coef=c(0,1))
 
-plot(par_mean_ev$eta_b ~ gen_par_alpha_learn$eta_b, bty='n', xlab = "Generative", ylab = "Recovered",
-     main = paste("eta_b, r =",round(cor(par_mean_ev$eta_b, gen_par_alpha_learn$eta_b),3)))
-abline(coef=c(0,1))
-
+hist(par_mean_ev$eta_b,bty='n',main='',xlab='eta_b')
 # Investigate the beta learning rate clusters -----------------------------
 test <- subset(par_ev_unknown,eta_b < 100)
 test_gen <- subset(gen_par_alpha_learn, sub %in% test$sub)
