@@ -535,3 +535,4 @@ anova(m)
 m <- glmer(data=Data,cor ~ group + (1|sub),family = 'binomial')
 library(car)
 Anova(m)
+
