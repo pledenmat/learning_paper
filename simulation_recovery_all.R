@@ -5,6 +5,7 @@ library(myPackage) # Run devtools::install_github("pledenmat/myPackage") to inst
 library(Rcpp)
 library(DEoptim)
 library(ggplot2)
+library(reshape)
 sourceCpp("ldc_train.cpp")
 source("ldc_nn_functions.R")
 set.seed(666)
@@ -274,45 +275,23 @@ write.csv(simDat_alpha,"simDat_alpha.csv",row.names = F)
 write.csv(simDat_both,"simDat_both.csv",row.names = F)
 write.csv(simDat_beta,"simDat_beta.csv",row.names = F)
 write.csv(simDat_no,"simDat_no.csv",row.names = F)
-# Fit models --------------------------------------------------------------
-beta_input <- .1
-Nupdate_per_trial <- 1
-Nsim_err <- 1000
-# bound, ter, z, vratio, drifts
-dt <- .001; sigma <- .1
-error_type1 <- "cross-entropy"
-error_type2 <- "mse"
-target <- "fb"
-fitname <- 'cj'
+# Retrieve fits --------------------------------------------------------------
 
-par_beta_learn <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                             sub = subs, manip=NA, model = "beta",Npar = 3,family = "continuous_conf")
-par_alpha_learn <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                              sub = subs, manip=NA, model = "alpha",Npar = 3,family = "continuous_conf")
-par_both_learn <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                             sub = subs, manip=NA, model = "both",Npar = 4,family = "continuous_conf")
-par_no_learn <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                           sub = subs,manip=NA, model = "no",Npar = 2,family = "continuous_conf")
-par_bin <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                      sub = subs, manip=NA, model = "bin",Npar = 4,family = "binned_conf")
-par_bin_mid <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                          sub = subs,manip=NA, model = "bin_mid",Npar = 4,family = "binned_conf")
-par_ev_unknown <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                             sub = subs,manip=NA, model = "ev_unknown",Npar = 4,family = "ev_unknown")
-par_mean_ev <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                          sub = subs,manip=NA, model = "mean_ev",Npar = 4,family = "ev_unknown")
+models <- c("no","alpha","beta","both")
 
-
-simDat_alpha_bin <- simDat_alpha
-simDat_alpha_bin$cj_continuous <- simDat_alpha_bin$cj
-simDat_alpha_bin$cj_bin <- as.numeric(cut(simDat_alpha_bin$cj,breaks=seq(0,1,length.out=7),include.lowest = T))
-simDat_alpha_bin$cj <- simDat_alpha_bin$cj_bin/6
+fit_par <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
+                  sub = rep(subs,each=length(models)^2), manip=NA, gen_model = rep(models,length(models)),
+                  fit_model = rep(models,each = length(models)),Npar = NA,
+                  Ndata_point = round(nrow(Data)/Nsub))
+fit_par$Npar <- 3
+fit_par[fit_par$fit_model=="no",'Npar'] <- 2
+fit_par[fit_par$fit_model=="both",'Npar'] <- 4
 for (s in 1:Nsub) {
-  temp_dat <- subset(simDat_alpha_bin,sub==subs[s])
+  temp_dat <- subset(simDat,sub==subs[s])
   print(paste("Running participant",s,"of",Nsub))
   
   ## Fit models with binned confidence
-  ddm_file1 <- paste0('fit/alternating_fb/ddm/ddmfit_',subs[s],'.Rdata')
+  ddm_file1 <- paste0('ddm/ddmfit_',subs[s],'.Rdata')
   if(file.exists(ddm_file1)){
     load(ddm_file1)
   }else{
@@ -326,182 +305,110 @@ for (s in 1:Nsub) {
   }
   ddm_params <- ddm.results$optim$bestmem[c(1,5:length(ddm.results$optim$bestmem))]
   
-  
-  
-  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/binned_confidence/sim_alpha_learn/both_model/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file)) {
-    load(ldc_file)
-  }else{
-    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
-                              obs = temp_dat,
-                              lower = c(0,-100,1,0,0), 
-                              upper = c(100,100,1,10000,10000),
-                              Nupdate_per_trial=Nupdate_per_trial,
-                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
-                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
-                              error_type2=error_type2,targetname=target,cost="separated",
-                              control=c(itermax=1000,steptol=70,NP=40))
-    ldc.results <- summary(optimal_params)
-    #save individual results
-    save(ldc.results, file=ldc_file)
+  for (gen_model in models) {
+    for (fit_model in models) {
+      ldc_file <- paste0('ldc_nn/recovery/evidence_unknown/sim_',gen_model,'_learn/',fit_model,'_model/ldcfit_',subs[s],'.Rdata')
+      if (file.exists(ldc_file)) {
+        load(ldc_file)
+      } else {
+        # Some fits were not properly saved so retrieved from cluster job output logs
+        ldc_save <- paste0('ldc_nn/recovery/evidence_unknown/sim_',gen_model,'_learn/',fit_model,'_model/slurm-55402977_',s,'.out')
+        if (file.exists(ldc_save)) {
+          test <- readLines(ldc_save)
+          check_finish <- "***** summary of DEoptim object ***** "
+          if (test[length(test)-5] == check_finish) {
+            recov_par <- unlist(strsplit(test[length(test)-4],split=" "))
+            a0 <- as.numeric(recov_par[7])
+            b0 <- as.numeric(recov_par[8])
+            eta_a <- as.numeric(recov_par[10])
+            eta_b <- as.numeric(recov_par[11])
+            cost <- as.numeric(unlist(strsplit(test[length(test)-3],split=" "))[8])
+            ldc.results <- list(optim=list(bestmem=c(a0,b0,1,eta_a,eta_b),bestval=cost))
+            save(ldc.results,file=ldc_file)
+          }
+        }
+      }
+      fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"a0"] <- ldc.results$optim$bestmem[1]
+      fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"b0"] <- ldc.results$optim$bestmem[2]
+      fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"eta_a"] <- ldc.results$optim$bestmem[4]
+      fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"eta_b"] <- ldc.results$optim$bestmem[5]
+      fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"cost_ldc"] <- ldc.results$optim$bestval
+      
+    }
   }
-  par_bin[par_bin$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-  par_bin[par_bin$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-  par_bin[par_bin$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-  par_bin[par_bin$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-  par_bin[par_bin$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-  
-  
-  temp_dat$cj <- temp_dat$cj - 1/12 # Try fixing bin values to center of their range
-  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/binned_confidence/sim_alpha_learn/both_model_bin_mid/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file)) {
-    load(ldc_file)
-  }else{
-    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
-                              obs = temp_dat,
-                              lower = c(0,-100,1,0,0), 
-                              upper = c(100,100,1,10000,10000),
-                              Nupdate_per_trial=Nupdate_per_trial,
-                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
-                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
-                              error_type2=error_type2,targetname=target,cost="separated",
-                              control=c(itermax=1000,steptol=70,NP=40))
-    ldc.results <- summary(optimal_params)
-    #save individual results
-    save(ldc.results, file=ldc_file)
-  }
-  par_bin_mid[par_bin_mid$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-  par_bin_mid[par_bin_mid$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-  par_bin_mid[par_bin_mid$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-  par_bin_mid[par_bin_mid$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-  par_bin_mid[par_bin_mid$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-  
-  
-  ## Fit models with continuous confidence
-  temp_dat <- subset(simDat_alpha,sub==subs[s])
-  
-  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/continuous_conf/sim_alpha_learn/beta_model/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file)) {
-    load(ldc_file)
-  }else{
-    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
-                              obs = temp_dat,
-                              lower = c(0,-100,1,0,0), 
-                              upper = c(50,100,1,0,10000),
-                              Nupdate_per_trial=Nupdate_per_trial,
-                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
-                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
-                              error_type2=error_type2,targetname=target,cost="separated",
-                              control=c(itermax=1000,steptol=70,NP=30))
-    ldc.results <- summary(optimal_params)
-    #save individual results
-    save(ldc.results, file=ldc_file)
-  }
-  par_beta_learn[par_beta_learn$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-  par_beta_learn[par_beta_learn$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-  par_beta_learn[par_beta_learn$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-  par_beta_learn[par_beta_learn$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-  par_beta_learn[par_beta_learn$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-  
-  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/continuous_conf/sim_alpha_learn/alpha_model/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file)) {
-    load(ldc_file)
-  }else{
-    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
-                              obs = temp_dat,
-                              lower = c(0,-100,1,0,0), 
-                              upper = c(50,100,1,10000,0),
-                              Nupdate_per_trial=Nupdate_per_trial,
-                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
-                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
-                              error_type2=error_type2,targetname=target,cost="separated",
-                              control=c(itermax=1000,steptol=70,NP=30))
-    ldc.results <- summary(optimal_params)
-    #save individual results
-    save(ldc.results, file=ldc_file)
-  }
-  par_alpha_learn[par_alpha_learn$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-  par_alpha_learn[par_alpha_learn$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-  par_alpha_learn[par_alpha_learn$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-  par_alpha_learn[par_alpha_learn$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-  par_alpha_learn[par_alpha_learn$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-  
-  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/continuous_conf/sim_alpha_learn/no_model/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file)) {
-    load(ldc_file)
-  }else{
-    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
-                              obs = temp_dat,
-                              lower = c(0,-100,1,0,0), 
-                              upper = c(50,100,1,0,0),
-                              Nupdate_per_trial=Nupdate_per_trial,
-                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
-                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
-                              error_type2=error_type2,targetname=target,cost="separated",
-                              control=c(itermax=1000,steptol=70,NP=30))
-    ldc.results <- summary(optimal_params)
-    #save individual results
-    save(ldc.results, file=ldc_file)
-  }
-  par_no_learn[par_no_learn$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-  par_no_learn[par_no_learn$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-  par_no_learn[par_no_learn$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-  par_no_learn[par_no_learn$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-  par_no_learn[par_no_learn$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-  
-  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/continuous_conf/sim_alpha_learn/both_model/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file)) {
-    load(ldc_file)
-  }else{
-    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
-                              obs = temp_dat,
-                              lower = c(0,-100,1,0,0), 
-                              upper = c(100,100,1,10000,10000),
-                              Nupdate_per_trial=Nupdate_per_trial,
-                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
-                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
-                              error_type2=error_type2,targetname=target,cost="separated",
-                              control=c(itermax=1000,steptol=70,NP=40))
-    ldc.results <- summary(optimal_params)
-    #save individual results
-    save(ldc.results, file=ldc_file)
-  }
-  par_both_learn[par_both_learn$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-  par_both_learn[par_both_learn$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-  par_both_learn[par_both_learn$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-  par_both_learn[par_both_learn$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-  par_both_learn[par_both_learn$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-  
-  ## Retrieve models with evidence unknown
-  ldc_file_ev_unknown <- paste0('fit/alternating_fb/ldc_nn/recovery/evidence_unknown/sim_alpha_learn/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file_ev_unknown)) {
-    load(ldc_file_ev_unknown)
-    par_ev_unknown[par_ev_unknown$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-    par_ev_unknown[par_ev_unknown$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-    par_ev_unknown[par_ev_unknown$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-    par_ev_unknown[par_ev_unknown$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-    par_ev_unknown[par_ev_unknown$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-    par_ev_unknown[par_ev_unknown$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  }
-  
-  ldc_file_mean_ev <- paste0('fit/alternating_fb/ldc_nn/recovery/evidence_unknown/mean_ev/sim_alpha_learn/ldcfit_',subs[s],'.Rdata')
-  if (file.exists(ldc_file_mean_ev)) {
-    load(ldc_file_mean_ev)
-    par_mean_ev[par_mean_ev$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
-    par_mean_ev[par_mean_ev$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
-    par_mean_ev[par_mean_ev$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
-    par_mean_ev[par_mean_ev$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
-    par_mean_ev[par_mean_ev$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
-    par_mean_ev[par_mean_ev$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  }
-  
-  par_bin[par_bin$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  par_bin_mid[par_bin_mid$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  par_both_learn[par_both_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  par_beta_learn[par_beta_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  par_alpha_learn[par_alpha_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
-  par_no_learn[par_no_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
+  fit_par[fit_par$sub==subs[s],"manip"] <- unique(temp_dat$manip)
 }
-par <- rbind(par_alpha_learn,par_beta_learn,par_both_learn,par_no_learn,
-             par_bin,par_bin_mid,par_ev_unknown,par_mean_ev)
-par$Ndata_point <- round(nrow(Data)/Nsub)
+
+# Model recovery ----------------------------------------------------------
+
+###
+#' List of things to do :
+#' - Check that the simulated dataset were indeed generated by the intended parameters
+#' - Retrieve model fits
+#' - Check that each model fit is correct (i.e. correct model was called)
+#' - Model comparison matrix (BIC and correlation)
+#' - Is the winning model the same as the generative one ?
+###
+
+### First check that everything went fine
+# Correct generative parameters
+with(par,aggregate(eta_a,list(model),mean))
+with(par,aggregate(eta_b,list(model),mean))
+# Correct models retrieved
+with(fit_par,aggregate(eta_a,list(gen=gen_model,fit=fit_model),mean))
+with(fit_par,aggregate(eta_b,list(gen=gen_model,fit=fit_model),mean))
+# All participants were retrieved
+table(complete.cases(fit_par$a0))
+
+bic_custom <- function(Residuals,k,n){
+  return(log(n)*k+n*log(Residuals/n))
+}
+aic_custom <- function(Residuals,k,n){
+  return(2*k+n*log(Residuals/n))
+}
+
+fit_par$bic <- bic_custom(fit_par$cost_ldc,fit_par$Npar,fit_par$Ndata_point)
+mean_bic <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model),mean))
+mean_bic <- cast(mean_bic,fit~gen)
+
+bic_sub <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
+bic_sub <- cast(bic_sub,gen+sub~fit)
+bic_sub$win_model <- sort(models)[apply(bic_sub[,3:6],1,which.min)]
+with(bic_sub,aggregate(win_model,list(gen=gen),table))
+cost_mat <- as.matrix(with(bic_sub,aggregate(win_model,list(gen=gen),table))[,2])
+heatmap(t(cost_mat),Rowv = NA, Colv = NA, ylab = "Fitted model",xlab = "Generating model",
+        labCol = c("alpha","beta","both","no"))
+
+high_lr <- unique(subset(par,eta_a>5 | eta_b > 5)$sub)
+mean_bic <- with(subset(fit_par,sub %in% high_lr),aggregate(bic,by=list(fit=fit_model,gen=gen_model),mean))
+mean_bic <- cast(mean_bic,fit~gen)
+
+test <- subset(fit_par,sub %in% high_lr & gen_model=='both')
+bic <- with(mean_bic,aggregate(delta,list(model),mean))
+names(bic) <- c('model','delta')
+
+# bic_order <- c('no','alpha','beta','both','bin','bin_mid','ev_unknown')
+# bic$model <- factor(bic$model, levels = bic_order)
+# bic <- bic[order(bic$model),]
+# barplot(bic[1:4,]$delta,names.arg = bic_order[1:4],xlab="Model (learning rate)", ylab = "BIC")
+# barplot(bic[c(4,5,7),]$delta,names.arg = c("continuous","binned","ev unknown"),
+#         xlab="Model (2 learning rates)", ylab = "BIC")
+check <- subset(bic_sub,sub %in% high_lr)
+with(check,aggregate(win_model,list(gen=gen),table))
+fit_par$bic_diff_no <- fit_par$bic
+for (s in subs) {
+  for (gen in models) {
+    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'bic_diff_no'] <- 
+      fit_par[fit_par$sub==s&fit_par$gen_model==gen,'bic_diff_no'] - 
+      fit_par[fit_par$sub==s&fit_par$gen_model==gen&fit_par$fit_model=='no','bic']
+  }
+}
+fit_par$max_lr <- apply(fit_par[,c('eta_a','eta_b')],1,max)
+for (fit in models) {
+  temp_par <- subset(fit_par,fit_model==fit)
+  plot(temp_par$max_lr,temp_par$bic_diff_no,xlab = "Learning rate", ylab = "BIC diff with no learning model",
+       bty='n', main = fit)
+  abline(h=0)
+  print(cor.test(temp_par$max_lr,temp_par$bic_diff_no))
+  # abline(lm(temp_par$max_lr~temp_par$bic_diff_no)$coef)
+}
