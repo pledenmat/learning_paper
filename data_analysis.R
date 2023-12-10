@@ -574,17 +574,17 @@ n_err <- 25
 trial_conf_sub <- with(Data,aggregate(cj,by=list(trial,cor,sub),mean))
 names(trial_conf_sub) <- c("trial","cor","sub","cj")
 
-pred_conf_sub_beta_learn <- with(Data,aggregate(cj_pred_beta_learn,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_beta_learn) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_alpha_learn <- with(Data,aggregate(cj_pred_alpha_learn,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_alpha_learn) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_both_learn <- with(Data,aggregate(cj_pred_both_learn,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_both_learn) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_no_learn <- with(Data,aggregate(cj_pred_no_learn,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_no_learn) <- c("trial","cor","sub","cj")
+# pred_conf_sub_beta_learn <- with(Data,aggregate(cj_pred_beta_learn,by=list(trial,cor,sub),mean))
+# names(pred_conf_sub_beta_learn) <- c("trial","cor","sub","cj")
+# 
+# pred_conf_sub_alpha_learn <- with(Data,aggregate(cj_pred_alpha_learn,by=list(trial,cor,sub),mean))
+# names(pred_conf_sub_alpha_learn) <- c("trial","cor","sub","cj")
+# 
+# pred_conf_sub_both_learn <- with(Data,aggregate(cj_pred_both_learn,by=list(trial,cor,sub),mean))
+# names(pred_conf_sub_both_learn) <- c("trial","cor","sub","cj")
+# 
+# pred_conf_sub_no_learn <- with(Data,aggregate(cj_pred_no_learn,by=list(trial,cor,sub),mean))
+# names(pred_conf_sub_no_learn) <- c("trial","cor","sub","cj")
 
 pred_conf_sub_beta_learn_fixed_lr <- with(Data,aggregate(cj_pred_beta_learn_fixed_lr,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_beta_learn_fixed_lr) <- c("trial","cor","sub","cj")
@@ -602,10 +602,10 @@ trials <- data.frame(trial=rep((0:(Ntrials-1))+Nskip,each=2),
                      cor=c(0,1),sub=rep(subs,each=Ntrials*2))
 
 cj_ma <- merge(trial_conf_sub,trials,all=T)
-cj_pred_ma_beta_learn <- merge(pred_conf_sub_beta_learn,trials,all=T)
-cj_pred_ma_alpha_learn <- merge(pred_conf_sub_alpha_learn,trials,all=T)
-cj_pred_ma_both_learn <- merge(pred_conf_sub_both_learn,trials,all=T)
-cj_pred_ma_no_learn <- merge(pred_conf_sub_no_learn,trials,all=T)
+# cj_pred_ma_beta_learn <- merge(pred_conf_sub_beta_learn,trials,all=T)
+# cj_pred_ma_alpha_learn <- merge(pred_conf_sub_alpha_learn,trials,all=T)
+# cj_pred_ma_both_learn <- merge(pred_conf_sub_both_learn,trials,all=T)
+# cj_pred_ma_no_learn <- merge(pred_conf_sub_no_learn,trials,all=T)
 cj_pred_ma_beta_learn_fixed_lr <- merge(pred_conf_sub_beta_learn_fixed_lr,trials,all=T)
 cj_pred_ma_alpha_learn_fixed_lr <- merge(pred_conf_sub_alpha_learn_fixed_lr,trials,all=T)
 cj_pred_ma_both_learn_fixed_lr <- merge(pred_conf_sub_both_learn_fixed_lr,trials,all=T)
@@ -640,7 +640,7 @@ cj_pred_ma_no_learn_fixed_lr$model <- "no"
 cj_pred_ma_both_learn_fixed_lr$model <- "both"
 cj_pred <- rbind(cj_pred_ma_no_learn_fixed_lr,cj_pred_ma_alpha_learn_fixed_lr,
                  cj_pred_ma_beta_learn_fixed_lr,cj_pred_ma_both_learn_fixed_lr)
-# Plot traces LR fixed to 5 ---------------------------------------------------
+# Plot traces LR fixed to 1 ---------------------------------------------------
 
 width <- 16 # Plot size expressed in cm
 height <- 10
@@ -656,7 +656,7 @@ go_to("plots")
 go_to("alternating_fb")
 go_to("trim")
 for (m in models) {
-  jpeg(filename = paste0("traces_",m,"_learn_5.jpg"),units = 'cm',width = 42,height = 30,res=300)
+  jpeg(filename = paste0("traces_",m,"_learn_1.jpg"),units = 'cm',width = 42,height = 30,res=300)
   # layout(matrix(c(1,1,3,3,2,2,4,4,5,6,7,8),ncol=3))
   layout(matrix(c(1,2,9,9,5,6,11,11,1,3,10,10,5,7,12,12,1,4,13,14,5,8,15,16),ncol=3),heights = c(.05,.05,.2,.2,.05,.05,.2,.2))
   par(mar=c(0,0,0,0))
@@ -957,10 +957,14 @@ mean_bic[mean_bic$manip=="beta","delta"] <-
   mean_bic[mean_bic$manip=="beta",]$x -
   min(mean_bic[mean_bic$manip=="beta",]$x)
 
-model_bic[which.min(model_bic$beta),]
-par[par$sub==model_bic[which.min(model_bic$beta),'sub'],]
-
-
+check <- subset(par,model=='both')
+summary(check)
+hist(check$eta_a)
+models_ord <- names(model_bic)[3:6]
+model_bic$best <- models_ord[apply(model_bic[,3:5],1,which.min)]
+with(model_bic,aggregate(best,list(manip),table))
+table(subset(model_bic,manip=='alpha')$best)
+table(subset(model_bic,manip=='beta')$best)
 ### Plot BIC distribution
 model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
 model_bic <- cast(model_bic, sub + manip ~ model)
