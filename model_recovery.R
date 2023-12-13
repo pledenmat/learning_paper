@@ -7,6 +7,8 @@ library(DEoptim)
 library(ggplot2)
 library(reshape)
 library(fitdistrplus)
+library(zoo) # rollapply
+library(colorBlindness)
 sourceCpp("ldc_train.cpp")
 source("ldc_nn_functions.R")
 set.seed(666)
@@ -373,10 +375,10 @@ for (s in 1:Nsub) {
 
 ### First check that everything went fine
 # Correct generative parameters
-with(par,aggregate(eta_a,list(model),mean))
-with(par,aggregate(eta_b,list(model),mean))
+with(par,aggregate(eta_a,list(model),summary))
+with(par,aggregate(eta_b,list(model),summary))
 # Correct models retrieved
-with(fit_par,aggregate(eta_a,list(gen=gen_model,fit=fit_model),mean))
+with(fit_par,aggregate(eta_a,list(gen=gen_model,fit=fit_model),summary))
 with(fit_par,aggregate(eta_b,list(gen=gen_model,fit=fit_model),mean))
 # All participants were retrieved
 table(complete.cases(fit_par$a0))
@@ -394,44 +396,48 @@ mean_bic <- cast(mean_bic,fit~gen)
 
 bic_sub <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
 bic_sub <- cast(bic_sub,gen+sub~fit)
+bic_sub <- bic_sub[complete.cases(bic_sub$alpha),]
 bic_sub$win_model <- sort(models)[apply(bic_sub[,3:6],1,which.min)]
+bic_sub$worst_model <- sort(models)[apply(bic_sub[,3:6],1,which.max)]
+with(bic_sub,aggregate(worst_model,list(gen=gen),table))
 with(bic_sub,aggregate(win_model,list(gen=gen),table))
+table(subset(bic_sub,gen=='both')$win_model)
+table(subset(bic_sub,gen=='alpha')$win_model)
+table(subset(bic_sub,gen=='beta')$win_model)
+table(subset(bic_sub,gen=='no')$win_model)
 cost_mat <- as.matrix(with(bic_sub,aggregate(win_model,list(gen=gen),table))[,2])
 heatmap(t(cost_mat),Rowv = NA, Colv = NA, ylab = "Fitted model",xlab = "Generating model",
         labCol = c("alpha","beta","both","no"))
-
-high_lr <- unique(subset(par,eta_a>5 | eta_b > 5)$sub)
-mean_bic <- with(subset(fit_par,sub %in% high_lr),aggregate(bic,by=list(fit=fit_model,gen=gen_model),mean))
-mean_bic <- cast(mean_bic,fit~gen)
 
 test <- subset(fit_par,sub %in% high_lr & gen_model=='both')
 bic <- with(mean_bic,aggregate(delta,list(model),mean))
 names(bic) <- c('model','delta')
 
-# bic_order <- c('no','alpha','beta','both','bin','bin_mid','ev_unknown')
-# bic$model <- factor(bic$model, levels = bic_order)
-# bic <- bic[order(bic$model),]
-# barplot(bic[1:4,]$delta,names.arg = bic_order[1:4],xlab="Model (learning rate)", ylab = "BIC")
-# barplot(bic[c(4,5,7),]$delta,names.arg = c("continuous","binned","ev unknown"),
-#         xlab="Model (2 learning rates)", ylab = "BIC")
-check <- subset(bic_sub,sub %in% high_lr)
-with(check,aggregate(win_model,list(gen=gen),table))
+par$max_lr <- apply(par[,c('eta_a','eta_b')],1,max)
+fit_par$max_gen_lr <- NA
 fit_par$bic_diff_no <- fit_par$bic
 for (s in subs) {
   for (gen in models) {
     fit_par[fit_par$sub==s&fit_par$gen_model==gen,'bic_diff_no'] <- 
       fit_par[fit_par$sub==s&fit_par$gen_model==gen,'bic_diff_no'] - 
       fit_par[fit_par$sub==s&fit_par$gen_model==gen&fit_par$fit_model=='no','bic']
+    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'max_gen_lr'] <- mean(subset(par,sub==s&model==gen)$max_lr)
+    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'gen_eta_a'] <- mean(subset(par,sub==s&model==gen)$eta_a)
+    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'gen_eta_b'] <- mean(subset(par,sub==s&model==gen)$eta_b)
   }
 }
-fit_par$max_lr <- apply(fit_par[,c('eta_a','eta_b')],1,max)
+fit_par$diff_eta_a <- abs(fit_par$eta_a - fit_par$gen_eta_a)
+fit_par$diff_eta_b <- abs(fit_par$eta_b - fit_par$gen_eta_b)
 for (fit in models) {
-  temp_par <- subset(fit_par,fit_model==fit)
-  plot(temp_par$max_lr,temp_par$bic_diff_no,xlab = "Learning rate", ylab = "BIC diff with no learning model",
-       bty='n', main = fit)
-  abline(h=0)
-  print(cor.test(temp_par$max_lr,temp_par$bic_diff_no))
+  # temp_par <- subset(fit_par,fit_model==fit)
+  # plot(temp_par$max_gen_lr,temp_par$bic_diff_no,xlab = "Learning rate", ylab = "BIC diff with no learning model",
+  #      bty='n', main = fit)
+  # abline(h=0)
+  # print(cor.test(temp_par$max_gen_lr,temp_par$bic_diff_no))
   # abline(lm(temp_par$max_lr~temp_par$bic_diff_no)$coef)
+  temp_par_matched <- subset(fit_par,fit_model==fit&gen_model==fit)
+  # print(cor.test(temp_par_matched$eta_a,temp_par_matched$gen_eta_a))
+  print(cor.test(temp_par_matched$diff_eta_b,temp_par_matched$bic_diff_no))
 }
 
 # Compute rolling mean per subject ----------------------------------------
