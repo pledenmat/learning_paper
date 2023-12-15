@@ -171,6 +171,8 @@ if (file.exists("par_model_recovery.csv")) {
   par$best <- NA
   for (s in 1:Nsub) {
     par[par$sub==subs[s] ,"best"] <- model_bic[model_bic$sub==subs[s],'best']
+    par_alpha_learn[par_alpha_learn$sub==subs[s] ,"best"] <- model_bic[model_bic$sub==subs[s],'best']
+    par_beta_learn[par_beta_learn$sub==subs[s] ,"best"] <- model_bic[model_bic$sub==subs[s],'best']
     # par[par$sub==subs[s] & par$model %in% c("alpha","both"),"eta_a"] <- eta_a[s]
     # par[par$sub==subs[s] & par$model %in% c("beta","both"),"eta_b"] <- eta_b[s]
   }
@@ -405,14 +407,19 @@ table(subset(bic_sub,gen=='both')$win_model)
 table(subset(bic_sub,gen=='alpha')$win_model)
 table(subset(bic_sub,gen=='beta')$win_model)
 table(subset(bic_sub,gen=='no')$win_model)
-cost_mat <- as.matrix(with(bic_sub,aggregate(win_model,list(gen=gen),table))[,2])
-heatmap(t(cost_mat),Rowv = NA, Colv = NA, ylab = "Fitted model",xlab = "Generating model",
-        labCol = c("alpha","beta","both","no"))
+# cost_mat <- as.matrix(with(bic_sub,aggregate(win_model,list(gen=gen),table))[,2])
+# heatmap(t(cost_mat),Rowv = NA, Colv = NA, ylab = "Fitted model",xlab = "Generating model",
+#         labCol = c("alpha","beta","both","no"))
 
+plot(subset(bic_sub,gen=='beta')$beta~subset(bic_sub,gen=="beta")$alpha)
 test <- subset(fit_par,sub %in% high_lr & gen_model=='both')
 bic <- with(mean_bic,aggregate(delta,list(model),mean))
 names(bic) <- c('model','delta')
-
+for (m in models) {
+  res <- cor(subset(bic_sub,gen==m)[,3:6],method='pearson')
+  print(m)
+  print(round(res,2))
+}
 par$max_lr <- apply(par[,c('eta_a','eta_b')],1,max)
 fit_par$max_gen_lr <- NA
 fit_par$bic_diff_no <- fit_par$bic
