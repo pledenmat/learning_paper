@@ -200,31 +200,43 @@ simDat_alpha$withinphasetrial <- simDat_alpha$trial %% Ntrials_phase
 simDat_alpha$phase_block <-  simDat_alpha$withinphasetrial %/% (Ntrials_phase/Nphase_block)
 simDat_alpha$phase_block <- as.factor(simDat_alpha$phase_block)
 
+simDat_beta$withinphasetrial <- simDat_beta$trial %% Ntrials_phase 
+simDat_beta$phase_block <-  simDat_beta$withinphasetrial %/% (Ntrials_phase/Nphase_block)
+simDat_beta$phase_block <- as.factor(simDat_beta$phase_block)
 
-# Aggregating behavior
-conf_group <- with(simDat_alpha,aggregate(cj,by=list(phase_block,manip,condition,cor),mean))
-names(conf_group) <- c('phase_block','manip','condition','cor','cj')
+simDat_both$withinphasetrial <- simDat_both$trial %% Ntrials_phase 
+simDat_both$phase_block <-  simDat_both$withinphasetrial %/% (Ntrials_phase/Nphase_block)
+simDat_both$phase_block <- as.factor(simDat_both$phase_block)
 
-trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
-                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),manip=rep(fb_manip,each=Nphase_block*4))
+simDat_no$withinphasetrial <- simDat_no$trial %% Ntrials_phase 
+simDat_no$phase_block <-  simDat_no$withinphasetrial %/% (Ntrials_phase/Nphase_block)
+simDat_no$phase_block <- as.factor(simDat_no$phase_block)
 
-conf_group <- merge(conf_group,trials_phase,all=T)
-table(complete.cases(conf_group$cj))
+y_range <- c(.2,.95)
 count_complete <- function(dat) {
   return(sum(complete.cases(dat)))
 }
-
-conf_alpha_count <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,count_complete)
-conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,count_complete)
 
 title_line <- -2
 cex.title <- 3
 cex.lab <- 3
 cex.axis <- 2
 cex.legend <- 2
-plot(conf_alpha$minus_0,ylim=c(.3,.9),col = BLUE, type = 'b',main="",
+
+go_to('new_sim')
+conf_group <- with(simDat_no,aggregate(cj,by=list(phase_block,manip,condition,cor),mean))
+names(conf_group) <- c('phase_block','manip','condition','cor','cj')
+
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
+                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),manip=rep(c("alpha","beta"),each=Nphase_block*4))
+
+conf_group <- merge(conf_group,trials_phase,all=T)
+
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+
+jpeg(filename="no_sim_cj_aggreg_alpha_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_alpha$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Alpha-Manipulated Feedback",
      lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
      xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
 axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
@@ -233,8 +245,10 @@ lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 
 lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
 legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
        pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
 
-plot(conf_beta$minus_0,ylim=c(.3,.9),col = BLUE, type = 'b',main="",
+jpeg(filename="no_sim_cj_aggreg_beta_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_beta$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Beta-Manipulated Feedback",
      lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
      xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
 axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
@@ -243,5 +257,119 @@ lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1
 lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
 legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
        pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
+
+conf_group <- with(simDat_beta,aggregate(cj,by=list(phase_block,manip,condition,cor),mean))
+names(conf_group) <- c('phase_block','manip','condition','cor','cj')
+
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
+                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),manip=rep(c("alpha","beta"),each=Nphase_block*4))
+
+conf_group <- merge(conf_group,trials_phase,all=T)
+
+conf_alpha_count <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,count_complete)
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,count_complete)
+
+jpeg(filename="beta_sim_cj_aggreg_alpha_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_alpha$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Alpha-Manipulated Feedback",
+     lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
+lines(conf_alpha$plus_0, type = 'b', pch = 17, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
+
+jpeg(filename="beta_sim_cj_aggreg_beta_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_beta$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Beta-Manipulated Feedback",
+     lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
+lines(conf_beta$plus_0, type = 'b', pch = 17, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
 
 
+# Aggregating behavior
+conf_group <- with(simDat_alpha,aggregate(cj,by=list(phase_block,manip,condition,cor),mean))
+names(conf_group) <- c('phase_block','manip','condition','cor','cj')
+
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
+                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),manip=rep(c("alpha","beta"),each=Nphase_block*4))
+
+conf_group <- merge(conf_group,trials_phase,all=T)
+
+conf_alpha_count <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,count_complete)
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,count_complete)
+
+jpeg(filename="alpha_sim_cj_aggreg_alpha_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_alpha$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Alpha-Manipulated Feedback",
+     lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
+lines(conf_alpha$plus_0, type = 'b', pch = 17, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
+
+jpeg(filename="alpha_sim_cj_aggreg_beta_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_beta$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Beta-Manipulated Feedback",
+     lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
+lines(conf_beta$plus_0, type = 'b', pch = 17, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
+
+
+conf_group <- with(simDat_both,aggregate(cj,by=list(phase_block,manip,condition,cor),mean))
+names(conf_group) <- c('phase_block','manip','condition','cor','cj')
+
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
+                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),manip=rep(c("alpha","beta"),each=Nphase_block*4))
+
+conf_group <- merge(conf_group,trials_phase,all=T)
+
+conf_alpha_count <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,count_complete)
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,count_complete)
+
+jpeg(filename="both_sim_cj_aggreg_alpha_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_alpha$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Alpha-Manipulated Feedback",
+     lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
+lines(conf_alpha$plus_0, type = 'b', pch = 17, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
+
+jpeg(filename="both_sim_cj_aggreg_beta_manip.jpg",height = 20,width=30,units = 'cm',res=600)
+plot(conf_beta$minus_0,ylim=y_range,col = BLUE, type = 'b',main="Beta-Manipulated Feedback",
+     lty = 2, pch = 17, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
+     xlab = paste("Consecutive groups of",Ntrials_phase/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
+lines(conf_beta$plus_0, type = 'b', pch = 17, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
+legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+dev.off()
+setwd('..')
