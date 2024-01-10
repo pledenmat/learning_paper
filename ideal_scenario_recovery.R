@@ -19,7 +19,7 @@ ldc <- function(a,b,data){
 
 # Setup simulation parameters ---------------------------------------------
 ### DDM parameters
-bound <- .07
+bound <- .05
 drift <- c(.03,.05,.07)
 difflevels <- c('hard','medium','easy')
 ter <- .4
@@ -159,10 +159,10 @@ simDat_alpha$evidence <- simDat_alpha$evidence_mean_ev
 simDat_beta$evidence <- simDat_beta$evidence_mean_ev
 simDat_both$evidence <- simDat_both$evidence_mean_ev
 
-# write.csv(simDat_alpha,"simDat_alpha_model_recovery_ideal2.csv",row.names = F)
-# write.csv(simDat_both,"simDat_both_model_recovery_ideal2.csv",row.names = F)
-# write.csv(simDat_beta,"simDat_beta_model_recovery_ideal2.csv",row.names = F)
-# write.csv(simDat_no,"simDat_no_model_recovery_ideal2.csv",row.names = F)
+# write.csv(simDat_alpha,"simDat_alpha_model_recovery_ideal.csv",row.names = F)
+# write.csv(simDat_both,"simDat_both_model_recovery_ideal.csv",row.names = F)
+# write.csv(simDat_beta,"simDat_beta_model_recovery_ideal.csv",row.names = F)
+# write.csv(simDat_no,"simDat_no_model_recovery_ideal.csv",row.names = F)
 # Compute rolling mean per subject ----------------------------------------
 n <- 25 # Rolling mean window size
 n_err <- 25

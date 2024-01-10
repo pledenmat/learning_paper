@@ -41,7 +41,7 @@ for (s in 1:Nsub) {
   
   for (gen_model in models) {
     for (fit_model in models) {
-      ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/model_recovery_ideal/sim_',gen_model,'_learn/',fit_model,'_model/ldcfit_',subs[s],'.Rdata')
+      ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/model_recovery_ideal/mean_ev/sim_',gen_model,'_learn/',fit_model,'_model/ldcfit_',subs[s],'.Rdata')
       if (file.exists(ldc_file)) {
         load(ldc_file)
         fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"a0"] <- ldc.results$optim$bestmem[1]
