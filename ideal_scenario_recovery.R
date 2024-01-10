@@ -101,6 +101,15 @@ simDat[simDat$manip=='beta'&simDat$condition=='plus','fb'] <- ldc(alpha_neutral,
 
 simDat$evidence <- simDat$evidence2 # Variable naming for generating confidence
 
+simDat$evidence_mean_ev <- bound # Variable naming for generating confidence
+# Add a drift rate column
+simDat$drift <- drift[1]
+for (diff in 2:length(drift)) {
+  simDat[simDat$difflevel==difflevels[diff],'drift'] <- drift[diff]
+}
+# Add evidence if correct, deduce if error
+simDat$evidence_mean_ev <- simDat$evidence_mean_ev + (as.numeric(simDat$cor)-.5)*2 * simDat$drift * simDat$RTconf 
+
 #' Finally, we compute confidence.
 #' 4 simulated datasets are generated, one for each model.
 #' Models differ in whether alpha/beta learning rate is fixed to 0 or not
@@ -144,6 +153,11 @@ for (iter_manip in 1:length(fb_manip)) {
   simDat_no[simDat_no$sub==iter_manip,'cj'] <- results_no_learn$pred
   simDat_beta[simDat_beta$sub==iter_manip,'cj'] <- results_beta_learn$pred
 }
+
+simDat_no$evidence <- simDat_no$evidence_mean_ev
+simDat_alpha$evidence <- simDat_alpha$evidence_mean_ev
+simDat_beta$evidence <- simDat_beta$evidence_mean_ev
+simDat_both$evidence <- simDat_both$evidence_mean_ev
 
 # write.csv(simDat_alpha,"simDat_alpha_model_recovery_ideal2.csv",row.names = F)
 # write.csv(simDat_both,"simDat_both_model_recovery_ideal2.csv",row.names = F)

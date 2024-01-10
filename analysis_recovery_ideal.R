@@ -44,28 +44,12 @@ for (s in 1:Nsub) {
       ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/model_recovery_ideal/sim_',gen_model,'_learn/',fit_model,'_model/ldcfit_',subs[s],'.Rdata')
       if (file.exists(ldc_file)) {
         load(ldc_file)
-      } else {
-        if (gen_model=='alpha'&fit_model=='both') {
-          # Some fits were not properly saved so retrieved from cluster job output logs
-          ldc_save <- paste0('fit/alternating_fb/ldc_nn/recovery/model_recovery_ideal/sim_',gen_model,'_learn/',fit_model,'_model/slurm-55435616_',subs[s],'.out')
-          if (file.exists(ldc_save)) {
-            test <- readLines(ldc_save)
-            temp_par <- unlist(strsplit(test[length(test)],split=" "))
-            a0 <- as.numeric(temp_par[8])
-            b0 <- as.numeric(temp_par[11])
-            eta_a <- as.numeric(temp_par[19])
-            eta_b <- as.numeric(temp_par[23])
-            cost <- as.numeric(temp_par[4])
-            ldc.results <- list(optim=list(bestmem=c(a0,b0,1,eta_a,eta_b),bestval=cost))
-            save(ldc.results,file=ldc_file)
-          }
-        }
-      }
         fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"a0"] <- ldc.results$optim$bestmem[1]
         fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"b0"] <- ldc.results$optim$bestmem[2]
         fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"eta_a"] <- ldc.results$optim$bestmem[4]
         fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"eta_b"] <- ldc.results$optim$bestmem[5]
         fit_par[fit_par$sub==subs[s] & fit_par$gen_model==gen_model & fit_par$fit_model==fit_model,"cost_ldc"] <- ldc.results$optim$bestval
+      } 
     }
   }
   fit_par[fit_par$sub==subs[s],"manip"] <- unique(temp_dat$manip)
@@ -93,9 +77,19 @@ mean_bic <- cast(mean_bic,fit~gen)
 bic_sub <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
 bic_sub <- cast(bic_sub,gen+sub~fit)
 bic_sub <- bic_sub[complete.cases(bic_sub$alpha),]
-bic_sub$win_model <- sort(models)[apply(bic_sub[,3:5],1,which.min)]
-bic_sub$worst_model <- sort(models)[apply(bic_sub[,3:5],1,which.max)]
+bic_sub$win_model <- sort(models)[apply(bic_sub[,3:6],1,which.min)]
+bic_sub$worst_model <- sort(models)[apply(bic_sub[,3:6],1,which.max)]
 
+# Check with aic too
+fit_par$aic <- aic_custom(fit_par$cost_ldc,fit_par$Npar,fit_par$Ndata_point)
+mean_aic <- with(fit_par,aggregate(aic,by=list(fit=fit_model,gen=gen_model),mean))
+mean_aic <- cast(mean_aic,fit~gen)
+
+aic_sub <- with(fit_par,aggregate(aic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
+aic_sub <- cast(aic_sub,gen+sub~fit)
+aic_sub <- aic_sub[complete.cases(aic_sub$alpha),]
+aic_sub$win_model <- sort(models)[apply(aic_sub[,3:6],1,which.min)]
+aic_sub$worst_model <- sort(models)[apply(aic_sub[,3:6],1,which.max)]
 
 # Rolling mean -----------------------------------------------------
 
