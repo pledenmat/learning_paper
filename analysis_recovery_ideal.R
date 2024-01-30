@@ -76,7 +76,7 @@ mean_bic <- cast(mean_bic,fit~gen)
 
 bic_sub <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
 bic_sub <- cast(bic_sub,gen+sub~fit)
-bic_sub <- bic_sub[complete.cases(bic_sub$alpha),]
+# bic_sub <- bic_sub[complete.cases(bic_sub$alpha),]
 bic_sub$win_model <- sort(models)[apply(bic_sub[,3:6],1,which.min)]
 bic_sub$worst_model <- sort(models)[apply(bic_sub[,3:6],1,which.max)]
 

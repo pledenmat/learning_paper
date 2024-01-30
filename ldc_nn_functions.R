@@ -126,7 +126,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     obs_nn <- obs[rep(seq_len(nrow(obs)), each=Nupdate_per_trial), ]
     obs_err <- obs[rep(seq_len(nrow(obs)), each=Nsim_error), ]
     if (mean_ev) {
-      obs_nn$evidence <- obs_nn$evidence + (as.numeric(obs_nn$cor)-1.5)*2 * obs_nn$drift * obs_nn[,confRTname] # Add evidence if correct, deduce if error
+      obs_nn$evidence <- obs_nn$evidence + (as.numeric(obs_nn$cor)-.5)*2 * obs_nn$drift * obs_nn[,confRTname] # Add evidence if correct, deduce if error
     } else {
       for (trial in seq(1,dim(obs_nn)[1],Nupdate_per_trial)) {
         #' Post decision drift rate sign depends on accuracy 

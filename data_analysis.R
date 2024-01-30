@@ -244,29 +244,6 @@ if (stat_tests) {
   anova(m.condxphasexcor,m.condxphase.cor)
   anova(m.condxphasexcor)
   
-  Data_alpha$cor <- as.factor(Data_alpha$cor)
-  Data_alpha$phase_block <- as.numeric(Data_alpha$phase_block)
-  m.int <- lmer(cj ~ condition*cor*phase_block + (1|sub),
-                data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  m.phase <- lmer(cj ~ condition*cor*phase_block + (phase_block|sub),
-                  data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.int,m.phase)
-  m.cond <- lmer(cj ~ condition*cor*phase_block + (condition|sub),
-                 data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.int,m.cond)  
-  m.cond.phase <- lmer(cj ~ condition*cor*phase_block + (phase_block+condition|sub),
-                       data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.cond.phase,m.cond)
-  m.condxphase <- lmer(cj ~ condition*cor*phase_block + (phase_block*condition|sub),
-                       data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.condxphase,m.cond.phase)
-  m.condxphase.cor <- lmer(cj ~ condition*cor*phase_block + (phase_block*condition+cor|sub),
-                           data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.condxphase.cor,m.condxphase)
-  m.condxphasexcor <- lmer(cj ~ condition*cor*phase_block + (phase_block*condition+cor+condition:cor|sub),
-                           data=Data_alpha, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.condxphasexcor,m.condxphase.cor)
-  anova(m.condxphasexcor)
   
   Data_beta$cor <- as.factor(Data_beta$cor)
   Data_beta$phase_block <- as.numeric(Data_beta$phase_block)
