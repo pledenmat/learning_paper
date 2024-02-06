@@ -18,7 +18,8 @@ Data <- read.csv("alternating_fb_mod_trim.csv")
 # write.csv(ddm_par[,c("bound","drift","ter","sub","condition","difflevel","manip")],file="ddm_params.csv",row.names = F)
 ddm_par <- read.csv("fit/alternating_fb/ddm_params.csv")
 gen_par_alpha_learn <- read.csv("fit/alternating_fb/par_alpha_learn.csv")
-gen_par_both_learn <- read.csv("fit/alternating_fb/par_both_learn.csv")
+gen_par_both_learn <- read.csv("fit/alternating_fb/gen_par_both.csv")
+gen_par_both_learn <- gen_par_both_learn[complete.cases(gen_par_both_learn$eta_a),]
 z <- 0
 sigma <- .1
 dt <- .001
@@ -107,7 +108,6 @@ for (s in 1:Nsub) {
   ddm_params <- subset(ddm_par,sub==subs[s])
   ddm_params <- c(mean(ddm_params$bound),
                   with(ddm_params,aggregate(drift,list(difflevel),mean))$x)
-  temp_par_both <- subset(gen_par_both_learn,sub==subs[s])
   temp_par_alpha <- subset(gen_par_alpha_learn,sub==subs[s])
   temp_dat <- subset(simDat,sub==subs[s])
   eta_a <- mean(subset(gen_par_alpha_learn,sub==subs[s])$eta_a)
@@ -120,22 +120,26 @@ for (s in 1:Nsub) {
                  obs=temp_dat,returnFit = F,eta_sep=T,estimate_evidence = F,
                  Nupdate_per_trial=Nupdate_per_trial, binning = binning,
                  dt = dt, sigma = sigma,targetname = 'fb',fitname = 'cj')
-  # results_both_learn <-
-  #   ldc.nn.fit.w(params=c(mean(temp_par_both$a0),
-  #                         mean(temp_par_both$b0),1,
-  #                         mean(temp_par_alpha$eta_a),
-  #                         mean(temp_par_both$eta_b)),
-  #                ddm_params = ddm_params,
-  #                obs=temp_dat,returnFit = F,eta_sep=T,estimate_evidence = F,
-  #                Nupdate_per_trial=Nupdate_per_trial, binning = binning,
-  #                dt = dt, sigma = sigma,targetname = 'fb',fitname = 'cj')
   simDat_alpha[simDat_alpha$sub==subs[s],'cj'] <- results_alpha_learn$pred
-  # simDat_both[simDat_both$sub==subs[s],'cj'] <- results_both_learn$pred
+  if (subs[s] %in% gen_par_both_learn$sub) {
+    temp_par_both <- subset(gen_par_both_learn,sub==subs[s])
+    results_both_learn <-
+      ldc.nn.fit.w(params=c(mean(temp_par_both$a0),
+                            mean(temp_par_both$b0),1,
+                            mean(temp_par_both$eta_a),
+                            mean(temp_par_both$eta_b)),
+                   ddm_params = ddm_params,
+                   obs=temp_dat,returnFit = F,eta_sep=T,estimate_evidence = F,
+                   Nupdate_per_trial=Nupdate_per_trial, binning = binning,
+                   dt = dt, sigma = sigma,targetname = 'fb',fitname = 'cj')
+    simDat_both[simDat_both$sub==subs[s],'cj'] <- results_both_learn$pred
+  }
 }
 
 # Save generated datasets
 simDat_alpha$RTconf <- simDat_alpha$rt2 - simDat_alpha$rt 
-write.csv(simDat_alpha,"simDat_alpha2.csv",row.names = F)
+simDat_both$RTconf <- simDat_both$rt2 - simDat_both$rt
+# write.csv(simDat_alpha,"simDat_alpha2.csv",row.names = F)
 # write.csv(simDat_both,"simDat_both.csv",row.names = F)
 # Fit models --------------------------------------------------------------
 beta_input <- .1
@@ -170,6 +174,11 @@ simDat_alpha_bin <- simDat_alpha
 simDat_alpha_bin$cj_continuous <- simDat_alpha_bin$cj
 simDat_alpha_bin$cj_bin <- as.numeric(cut(simDat_alpha_bin$cj,breaks=seq(0,1,length.out=7),include.lowest = T))
 simDat_alpha_bin$cj <- simDat_alpha_bin$cj_bin/6
+# simDat_both_bin <- simDat_both
+# simDat_both_bin$cj_continuous <- simDat_both_bin$cj
+# simDat_both_bin$cj_bin <- as.numeric(cut(simDat_both_bin$cj,breaks=seq(0,1,length.out=7),include.lowest = T))
+# simDat_both_bin$cj <- simDat_both_bin$cj_bin/6
+
 for (s in 1:Nsub) {
   temp_dat <- subset(simDat_alpha_bin,sub==subs[s])
   print(paste("Running participant",s,"of",Nsub))
@@ -358,6 +367,31 @@ for (s in 1:Nsub) {
     par_mean_ev[par_mean_ev$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   }
   
+  temp_dat <- subset(simDat_both,sub==subs[s])
+  
+  ldc_file <- paste0('fit/alternating_fb/ldc_nn/recovery/continuous_conf/sim_both_learn/both_model/ldcfit_',subs[s],'.Rdata')
+  if (file.exists(ldc_file)) {
+    load(ldc_file)
+  }else{
+    optimal_params <- DEoptim(ldc.nn.fit.w,ddm_params=ddm_params, 
+                              obs = temp_dat,
+                              lower = c(0,-100,1,0,0), 
+                              upper = c(100,100,1,10000,10000),
+                              Nupdate_per_trial=Nupdate_per_trial,
+                              dt = dt, sigma = sigma,binning=binning,eta_sep=T,estimate_evidence=F,
+                              Nsim_err=Nsim_err,error_type1=error_type1,fitname=fitname,
+                              error_type2=error_type2,targetname=target,cost="separated",
+                              control=c(itermax=1000,steptol=70,NP=40))
+    ldc.results <- summary(optimal_params)
+    #save individual results
+    save(ldc.results, file=ldc_file)
+  }
+  par_both_learn[par_both_learn$sub==subs[s],"a0"] <- ldc.results$optim$bestmem[1]
+  par_both_learn[par_both_learn$sub==subs[s],"b0"] <- ldc.results$optim$bestmem[2]
+  par_both_learn[par_both_learn$sub==subs[s],"eta_a"] <- ldc.results$optim$bestmem[4]
+  par_both_learn[par_both_learn$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
+  par_both_learn[par_both_learn$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
+  
   par_bin[par_bin$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_bin_mid[par_bin_mid$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_both_learn[par_both_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
@@ -535,4 +569,31 @@ anova(m)
 m <- glmer(data=Data,cor ~ group + (1|sub),family = 'binomial')
 library(car)
 Anova(m)
+
+
+# Parameter recovery ------------------------------------------------------
+gen_par_both_learn <- aggregate(cbind(a0,b0,eta_a,eta_b) ~ sub, data = par_both_learn,mean)
+fit_par_both_learn <- subset(fit_par,gen_model=="both"&fit_model=='both')
+
+# Best overall model
+jpeg(filename = "plots/paper/parameter_recovery_unknown_ev.jpg", width = 32, height = 32, units = 'cm', res = 600)
+par(mfrow=c(2,2))
+plot(fit_par_both_learn$a0 ~ gen_par_both_learn$a0, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("a0, r =",round(cor(fit_par_both_learn$a0, gen_par_both_learn$a0),3)), cex.lab = 2, cex.main = 3)
+abline(coef=c(0,1))
+
+plot(fit_par_both_learn$b0 ~ gen_par_both_learn$b0, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("b0, r =",round(cor(fit_par_both_learn$b0, gen_par_both_learn$b0),3)), cex.lab = 2, cex.main = 3)
+abline(coef=c(0,1))
+
+plot(fit_par_both_learn$eta_a ~ gen_par_both_learn$eta_a, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("Alpha learning rate, r =",round(cor(fit_par_both_learn$eta_a, gen_par_both_learn$eta_a),3)), cex.lab = 2, cex.main = 3)
+abline(coef=c(0,1))
+
+plot(fit_par_both_learn$eta_b ~ gen_par_both_learn$eta_b, bty='n', xlab = "Generative", ylab = "Recovered",
+     main = paste("Beta learning rate, r =",round(cor(fit_par_both_learn$eta_a, gen_par_both_learn$eta_a),3)), cex.lab = 2, cex.main = 3)
+abline(coef=c(0,1))
+
+dev.off()
+
 
