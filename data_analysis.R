@@ -203,83 +203,37 @@ if (stat_tests) {
   qqmath(m.cond.acc.x) #Normality
   anova(m.cond.acc.x) #Results
   
-  ## Evolution of confidence within a switch
-  Data_alpha$cor <- as.factor(Data_alpha$cor)
-  Data_alpha$phase_block <- as.numeric(Data_alpha$phase_block)
+  m.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
+  m.cond <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
+  anova(m.int,m.cond)
+  m.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
+                  control = lmerControl(optimizer='bobyqa'))
+  m.cond.cor <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
+  anova(m.cond,m.cond.cor)
+  m.cond.cor.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
+  m.cond.cor.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
+                         control = lmerControl(optimizer='bobyqa'))
+  anova(m.cond.cor,m.cond.cor.int)
+  anova(m.cond.cor)
   
   
-  Data_beta$cor <- as.factor(Data_beta$cor)
-  Data_beta$phase_block <- as.numeric(Data_beta$phase_block)
-  m.beta.int <- lmer(cj ~ condition*cor*phase_block + (1|sub),
-                     data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  m.beta.phase <- lmer(cj ~ condition*cor*phase_block + (phase_block|sub),
-                       data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.beta.int,m.beta.phase)
-  m.beta.cond <- lmer(cj ~ condition*cor*phase_block + (condition|sub),
-                      data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.beta.int,m.beta.cond)  
-  m.beta.cond.phase <- lmer(cj ~ condition*cor*phase_block + (phase_block+condition|sub),
-                            data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.beta.cond.phase,m.beta.cond)
-  m.beta.condxphase <- lmer(cj ~ condition*cor*phase_block + (phase_block*condition|sub),
-                            data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.beta.condxphase,m.beta.cond.phase)
-  m.beta.condxphase.cor <- lmer(cj ~ condition*cor*phase_block + (phase_block*condition+cor|sub),
-                                data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.beta.condxphase.cor,m.beta.condxphase)
-  m.beta.condxphasexcor <- lmer(cj ~ condition*cor*phase_block + (phase_block*condition+cor+condition:cor|sub),
-                                data=Data_beta, REML = F, control = lmerControl(optimizer='bobyqa'))
-  anova(m.beta.condxphasexcor,m.beta.condxphase.cor)
-  anova(m.beta.condxphasexcor)
-  emm <- emmeans(m.beta.condxphasexcor, ~ phase_block | condition)
+  m.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
+  m.cond <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
+  anova(m.int,m.cond)
+  m.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
+                  control = lmerControl(optimizer='bobyqa'))
+  m.cond.cor <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
+  anova(m.cond,m.cond.cor)
+  m.cond.cor.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
+  m.cond.cor.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
+                         control = lmerControl(optimizer='bobyqa'))
+  anova(m.cond.cor,m.cond.cor.int)
+  anova(m.cond.cor)
+  emm <- emmeans(m.cond.cor, ~ condition | cor)
   pairs(emm)
-  vif(m.beta.condxphasexcor)
-  
-  test <- Data_alpha[,c("condition","cor","phase_block","cj")]
-  cor(test)
   
 }
 
-# One big experiment ------------------------------------------------------
-
-if (stat_tests) {
-  # RT
-  m.int <- lmer(log(rt)~condition*difflevel*manip + (1|sub),data = Data,REML = F)
-  m.cond <- lmer(log(rt)~condition*difflevel*manip + (condition|sub),data = Data,REML = F)
-  anova(m.int,m.cond)
-  m.diff <- lmer(rt~condition*difflevel*manip + (difflevel|sub),data = Data,REML = F,
-                 lmerControl(optimizer = 'bobyqa')) #Singular fit
-  leveneTest(residuals(m.cond) ~ Data$condition) #Homogeneity of variance
-  qqmath(m.cond) #Normality
-  anova(m.cond) #Results
-  
-  # Accuracy
-  m.int <- glmer(cor~condition*difflevel + (1|sub),data=Data,family=binomial)
-  m.cond <- glmer(cor~condition*difflevel + (condition|sub),data=Data,family=binomial); 
-  anova(m.int,m.cond)
-  m.diff <- glmer(cor~condition*difflevel*manip + (difflevel|sub),data=Data,family=binomial); #singular
-  leveneTest(residuals(m.cond) ~ Data$condition) #Homogeneity of variance
-  plot(m.int)
-  Anova(m.int)
-  
-  # Confidence
-  Data$cor <- as.factor(Data$cor)
-  m.int <- lmer(cj ~ condition*cor*difflevel*manip + (1|sub),data = Data,REML = F); 
-  m.cond <- lmer(cj ~ condition*cor*difflevel*manip + (condition|sub),data = Data,REML = F); 
-  anova(m.int,m.cond)
-  m.cond.acc <- lmer(cj ~ condition*cor*difflevel*manip + (cor + condition|sub),data = Data, REML = F)
-  anova(m.cond,m.cond.acc)
-  m.all <- lmer(cj ~ condition*cor*difflevel*manip + (cor + condition + difflevel|sub),
-                data = Data, REML = F) # Failed to converge
-  m.cond.acc.x <- lmer(cj ~ condition*cor*difflevel*manip + (cor * condition|sub),
-                       data = Data, REML = F,control = lmerControl(optimizer = 'bobyqa'))
-  anova(m.cond.acc,m.cond.acc.x)
-  plot(resid(m.cond.acc.x),Data$cj) #Linearity
-  plot(m.cond.acc.x)
-  leveneTest(residuals(m.cond.acc.x) ~ Data$cor*Data$condition*Data$difflevel*Data$manip) #Homogeneity of variance
-  qqmath(m.cond.acc.x) #Normality
-  anova(m.cond.acc.x) #Results
-}
 # Plot Feedback presented ------------------------------------------------
 width <- 16 # Plot size expressed in cm
 height <- 10
@@ -721,20 +675,6 @@ par <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                   sub = rep(subs, each = length(difflevels)*length(models)),
                   difflevel = rep(difflevels, length.out = totlen),
                   manip = NA, model = rep(models, each = length(difflevels)) )
-par_fixed_lr_1 <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, 
-                  eta_a = rep(eta_a_1, each = length(difflevels)), 
-                  eta_b = rep(eta_b_1, each = length(difflevels)),
-                  bound = NA, drift = NA, ter = NA,cost_ddm = NA, 
-                  sub = rep(subs, each = length(difflevels)*length(models)),
-                  difflevel = rep(difflevels, length.out = totlen),
-                  manip = NA, model = rep(models, each = length(difflevels)) )
-par_fixed_lr_5 <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, 
-                             eta_a = rep(eta_a_5, each = length(difflevels)), 
-                             eta_b = rep(eta_b_5, each = length(difflevels)),
-                             bound = NA, drift = NA, ter = NA,cost_ddm = NA, 
-                             sub = rep(subs, each = length(difflevels)*length(models)),
-                             difflevel = rep(difflevels, length.out = totlen),
-                             manip = NA, model = rep(models, each = length(difflevels)) )
 
 
 go_to("fit")
@@ -745,20 +685,6 @@ if (!file.exists("anal_sim.Rdata")) {
   anal_sim$beta <- NA
   anal_sim$sim <- 1:Nsim
   anal_sim$model <- rep(models,each=Nsim)
-}
-if (!file.exists("anal_sim_fixed_lr_5.Rdata")) {
-  anal_sim_fixed_lr_5 <- Data[rep(seq_len(nrow(Data)), each=Nsim*length(models)), c('trial','withinphasetrial','sub','condition','cor')]
-  anal_sim_fixed_lr_5$alpha <- NA
-  anal_sim_fixed_lr_5$beta <- NA
-  anal_sim_fixed_lr_5$sim <- 1:Nsim
-  anal_sim_fixed_lr_5$model <- rep(models,each=Nsim)
-}
-if (!file.exists("anal_sim_fixed_lr_1.Rdata")) {
-  anal_sim_fixed_lr_1 <- Data[rep(seq_len(nrow(Data)), each=Nsim*length(models)), c('trial','withinphasetrial','sub','condition','cor')]
-  anal_sim_fixed_lr_1$alpha <- NA
-  anal_sim_fixed_lr_1$beta <- NA
-  anal_sim_fixed_lr_1$sim <- 1:Nsim
-  anal_sim_fixed_lr_1$model <- rep(models,each=Nsim)
 }
 for (s in 1:length(subs)) {
   print(paste("Retrieving participant",s))
@@ -810,39 +736,6 @@ for (s in 1:length(subs)) {
           anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s]&anal_sim$model==model ,'beta'] <- results$trace[,2]  
         }
       }
-      if (!file.exists("anal_sim_fixed_lr_5.Rdata")) {
-        for (i in 1:Nsim) {
-          results <-
-            ldc.nn.fit.w(params=c(mean(par[par$sub==subs[s]&par$model==model,"a0"]),
-                                  mean(par[par$sub==subs[s]&par$model==model,"b0"]),1,
-                                  mean(par_fixed_lr[par_fixed_lr$sub==subs[s]&par_fixed_lr$model==model,"eta_a"]),
-                                  mean(par_fixed_lr[par_fixed_lr$sub==subs[s]&par_fixed_lr$model==model,"eta_b"])),
-                         ddm_params = ddm_params,
-                         obs=temp_dat,returnFit = F,eta_sep=T,
-                         Nupdate_per_trial=Nupdate_per_trial, binning = binning,
-                         dt = dt, sigma = sigma)
-          anal_sim_fixed_lr_5[anal_sim_fixed_lr_5$sim==i&anal_sim_fixed_lr_5$sub==subs[s]&anal_sim_fixed_lr_5$model==model ,'cj'] <- results$pred
-          anal_sim_fixed_lr_5[anal_sim_fixed_lr_5$sim==i&anal_sim_fixed_lr_5$sub==subs[s]&anal_sim_fixed_lr_5$model==model ,'alpha'] <- results$trace[,1]
-          anal_sim_fixed_lr_5[anal_sim_fixed_lr_5$sim==i&anal_sim_fixed_lr_5$sub==subs[s]&anal_sim_fixed_lr_5$model==model ,'beta'] <- results$trace[,2]  
-        }
-      }
-      if (!file.exists("anal_sim_fixed_lr_1.Rdata")) {
-        for (i in 1:Nsim) {
-          results <-
-            ldc.nn.fit.w(params=c(mean(par[par$sub==subs[s]&par$model==model,"a0"]),
-                                  mean(par[par$sub==subs[s]&par$model==model,"b0"]),1,
-                                  mean(par_fixed_lr[par_fixed_lr$sub==subs[s]&par_fixed_lr$model==model,"eta_a"]),
-                                  mean(par_fixed_lr[par_fixed_lr$sub==subs[s]&par_fixed_lr$model==model,"eta_b"])),
-                         ddm_params = ddm_params,
-                         obs=temp_dat,returnFit = F,eta_sep=T,
-                         Nupdate_per_trial=Nupdate_per_trial, binning = binning,
-                         dt = dt, sigma = sigma)
-          anal_sim_fixed_lr_1[anal_sim_fixed_lr_1$sim==i&anal_sim_fixed_lr_1$sub==subs[s]&anal_sim_fixed_lr_1$model==model ,'cj'] <- results$pred
-          anal_sim_fixed_lr_1[anal_sim_fixed_lr_1$sim==i&anal_sim_fixed_lr_1$sub==subs[s]&anal_sim_fixed_lr_1$model==model ,'alpha'] <- results$trace[,1]
-          anal_sim_fixed_lr_1[anal_sim_fixed_lr_1$sim==i&anal_sim_fixed_lr_1$sub==subs[s]&anal_sim_fixed_lr_1$model==model ,'beta'] <- results$trace[,2]  
-        }
-      }
-      
     }
   }
   
@@ -853,16 +746,6 @@ if (!file.exists("anal_sim.Rdata")) {
   save(anal_sim,file="anal_sim.Rdata")
 } else {
   load("anal_sim.Rdata")
-}
-if (!file.exists("anal_sim_fixed_lr_5.Rdata")) {
-  save(anal_sim_fixed_lr_5,file="anal_sim_fixed_lr_5.Rdata")
-} else {
-  load("anal_sim_fixed_lr_5.Rdata")
-}
-if (!file.exists("anal_sim_fixed_lr_1.Rdata")) {
-  save(anal_sim_fixed_lr_1,file="anal_sim_fixed_lr_1.Rdata")
-} else {
-  load("anal_sim_fixed_lr_1.Rdata")
 }
 
 #' Add confidence prediction and parameter trace from each model to the empirical data frame
@@ -877,32 +760,64 @@ for (m in models) {
   anal_sim_mean <- merge(merge(cj_pred,alpha),beta)
   Data <- merge(Data,anal_sim_mean)
   
-  cj_pred <- with(subset(anal_sim_fixed_lr_5,model==m),aggregate(cj,by=list(trial,sub),mean))
-  alpha <- with(subset(anal_sim_fixed_lr_5,model==m),aggregate(alpha,by=list(trial,sub),mean))
-  beta <- with(subset(anal_sim_fixed_lr_5,model==m),aggregate(beta,by=list(trial,sub),mean))
-  names(cj_pred) <- c("trial","sub",paste0("cj_pred_",m,"_learn_fixed_lr_5"))
-  names(alpha) <- c("trial","sub",paste0("alpha_",m,"_learn_fixed_lr_5"))
-  names(beta) <- c("trial","sub",paste0("beta_",m,"_learn_fixed_lr_5"))
-  anal_sim_fixed_lr_5_mean <- merge(merge(cj_pred,alpha),beta)
-  Data <- merge(Data,anal_sim_fixed_lr_5_mean)
-  
-  cj_pred <- with(subset(anal_sim_fixed_lr_1,model==m),aggregate(cj,by=list(trial,sub),mean))
-  alpha <- with(subset(anal_sim_fixed_lr_1,model==m),aggregate(alpha,by=list(trial,sub),mean))
-  beta <- with(subset(anal_sim_fixed_lr_1,model==m),aggregate(beta,by=list(trial,sub),mean))
-  names(cj_pred) <- c("trial","sub",paste0("cj_pred_",m,"_learn_fixed_lr_1"))
-  names(alpha) <- c("trial","sub",paste0("alpha_",m,"_learn_fixed_lr_1"))
-  names(beta) <- c("trial","sub",paste0("beta_",m,"_learn_fixed_lr_1"))
-  anal_sim_fixed_lr_1_mean <- merge(merge(cj_pred,alpha),beta)
-  Data <- merge(Data,anal_sim_fixed_lr_1_mean)
 }
 
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
+# Model comparison --------------------------------------------------------
+par$Ndata_point <-  round(nrow(Data)/Nsub)
+par$Npar <- 3
+par[par$model=="no",'Npar'] <- 2
+par[par$model=="both",'Npar'] <- 4
 
-gen_par_both <- subset(par,model=='both')
-summary(gen_par_both)
-write.csv(gen_par_both,"gen_par_both.csv",row.names=F)
-write.csv(par,"gen_par.csv",row.names=F)
+bic_custom <- function(Residuals,k,n){
+  return(log(n)*k+n*log(Residuals/n))
+}
+
+par$bic <- bic_custom(par$cost_ldc,par$Npar,par$Ndata_point)
+mean_bic <- with(par,aggregate(bic,by=list(model=model,manip=manip),mean))
+mean_bic$delta <- -99
+mean_bic[mean_bic$manip=="alpha","delta"] <- 
+  mean_bic[mean_bic$manip=="alpha",]$x - 
+  min(mean_bic[mean_bic$manip=="alpha",]$x)
+mean_bic[mean_bic$manip=="beta","delta"] <- 
+  mean_bic[mean_bic$manip=="beta",]$x -
+  min(mean_bic[mean_bic$manip=="beta",]$x)
+
+### Best model per participant
+model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
+model_bic <- cast(model_bic, sub + manip ~ model)
+models_ord <- names(model_bic)[3:6]
+model_bic$best <- models_ord[apply(model_bic[,3:5],1,which.min)]
+with(model_bic,aggregate(best,list(manip),table))
+table(subset(model_bic,manip=='alpha')$best)
+table(subset(model_bic,manip=='beta')$best)
+
+# Add the best model to the empirical data frame
+Data <- merge(Data,model_bic[,c('sub','manip','best')])
+Data$best <- as.factor(Data_test$best)
+
+# Add a column with the predicted confidence from the best model per participant to the empirical data frame
+Data$cj_pred_best <- NA
+for (s in 1:Nsub) {
+  tempdat <- subset(Data,sub==subs[s])
+  if (unique(tempdat$best=="no")) {
+    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_no_learn
+  } else if (unique(tempdat$best=="alpha")) {
+    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_alpha_learn
+  } else if (unique(tempdat$best=="beta")) {
+    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_beta_learn
+  } else if (unique(tempdat$best=="both")) {
+    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_both_learn
+  }
+}
+
+# Analysis of model prediction --------------------------------------------
+if (stat_tests) {
+
+  
+}
+
 # Compute rolling mean per subject ----------------------------------------
 n <- 25 # Rolling mean window size
 n_err <- 25
@@ -922,30 +837,6 @@ names(pred_conf_sub_both_learn) <- c("trial","cor","sub","cj")
 pred_conf_sub_no_learn <- with(Data,aggregate(cj_pred_no_learn,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_no_learn) <- c("trial","cor","sub","cj")
 
-pred_conf_sub_beta_learn_fixed_lr_5 <- with(Data,aggregate(cj_pred_beta_learn_fixed_lr_5,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_beta_learn_fixed_lr_5) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_alpha_learn_fixed_lr_5 <- with(Data,aggregate(cj_pred_alpha_learn_fixed_lr_5,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_alpha_learn_fixed_lr_5) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_both_learn_fixed_lr_5 <- with(Data,aggregate(cj_pred_both_learn_fixed_lr_5,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_both_learn_fixed_lr_5) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_no_learn_fixed_lr_5 <- with(Data,aggregate(cj_pred_no_learn_fixed_lr_5,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_no_learn_fixed_lr_5) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_beta_learn_fixed_lr_1 <- with(Data,aggregate(cj_pred_beta_learn_fixed_lr_1,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_beta_learn_fixed_lr_1) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_alpha_learn_fixed_lr_1 <- with(Data,aggregate(cj_pred_alpha_learn_fixed_lr_1,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_alpha_learn_fixed_lr_1) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_both_learn_fixed_lr_1 <- with(Data,aggregate(cj_pred_both_learn_fixed_lr_1,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_both_learn_fixed_lr_1) <- c("trial","cor","sub","cj")
-
-pred_conf_sub_no_learn_fixed_lr_1 <- with(Data,aggregate(cj_pred_no_learn_fixed_lr_1,by=list(trial,cor,sub),mean))
-names(pred_conf_sub_no_learn_fixed_lr_1) <- c("trial","cor","sub","cj")
-
 trials <- data.frame(trial=rep((0:(Ntrials-1))+Nskip,each=2),
                      cor=c(0,1),sub=rep(subs,each=Ntrials*2))
 
@@ -954,14 +845,7 @@ cj_pred_ma_beta_learn <- merge(pred_conf_sub_beta_learn,trials,all=T)
 cj_pred_ma_alpha_learn <- merge(pred_conf_sub_alpha_learn,trials,all=T)
 cj_pred_ma_both_learn <- merge(pred_conf_sub_both_learn,trials,all=T)
 cj_pred_ma_no_learn <- merge(pred_conf_sub_no_learn,trials,all=T)
-cj_pred_ma_beta_learn_fixed_lr_5 <- merge(pred_conf_sub_beta_learn_fixed_lr_5,trials,all=T)
-cj_pred_ma_alpha_learn_fixed_lr_5 <- merge(pred_conf_sub_alpha_learn_fixed_lr_5,trials,all=T)
-cj_pred_ma_both_learn_fixed_lr_5 <- merge(pred_conf_sub_both_learn_fixed_lr_5,trials,all=T)
-cj_pred_ma_no_learn_fixed_lr_5 <- merge(pred_conf_sub_no_learn_fixed_lr_5,trials,all=T)
-cj_pred_ma_beta_learn_fixed_lr_1 <- merge(pred_conf_sub_beta_learn_fixed_lr_1,trials,all=T)
-cj_pred_ma_alpha_learn_fixed_lr_1 <- merge(pred_conf_sub_alpha_learn_fixed_lr_1,trials,all=T)
-cj_pred_ma_both_learn_fixed_lr_1 <- merge(pred_conf_sub_both_learn_fixed_lr_1,trials,all=T)
-cj_pred_ma_no_learn_fixed_lr_1 <- merge(pred_conf_sub_no_learn_fixed_lr_1,trials,all=T)
+
 
 ma <- function(x,n,names){
   return(rollapply(x[,names], width=n, FUN=function(x) mean(x, na.rm=TRUE),partial=TRUE, align="center"))
@@ -978,35 +862,8 @@ for (s in subs) {
   cj_pred_ma_both_learn[cj_pred_ma_both_learn$sub==s&cj_pred_ma_both_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_both_learn,sub==s&cor==1),n,"cj")
   cj_pred_ma_no_learn[cj_pred_ma_no_learn$sub==s&cj_pred_ma_no_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_no_learn,sub==s&cor==0),n_err,"cj")
   cj_pred_ma_no_learn[cj_pred_ma_no_learn$sub==s&cj_pred_ma_no_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_no_learn,sub==s&cor==1),n,"cj")
-  cj_pred_ma_beta_learn_fixed_lr_5[cj_pred_ma_beta_learn_fixed_lr_5$sub==s&cj_pred_ma_beta_learn_fixed_lr_5$cor==0,"cj"] <- ma(subset(cj_pred_ma_beta_learn_fixed_lr_5,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_beta_learn_fixed_lr_5[cj_pred_ma_beta_learn_fixed_lr_5$sub==s&cj_pred_ma_beta_learn_fixed_lr_5$cor==1,"cj"] <- ma(subset(cj_pred_ma_beta_learn_fixed_lr_5,sub==s&cor==1),n,"cj")
-  cj_pred_ma_alpha_learn_fixed_lr_5[cj_pred_ma_alpha_learn_fixed_lr_5$sub==s&cj_pred_ma_alpha_learn_fixed_lr_5$cor==0,"cj"] <- ma(subset(cj_pred_ma_alpha_learn_fixed_lr_5,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_alpha_learn_fixed_lr_5[cj_pred_ma_alpha_learn_fixed_lr_5$sub==s&cj_pred_ma_alpha_learn_fixed_lr_5$cor==1,"cj"] <- ma(subset(cj_pred_ma_alpha_learn_fixed_lr_5,sub==s&cor==1),n,"cj")
-  cj_pred_ma_both_learn_fixed_lr_5[cj_pred_ma_both_learn_fixed_lr_5$sub==s&cj_pred_ma_both_learn_fixed_lr_5$cor==0,"cj"] <- ma(subset(cj_pred_ma_both_learn_fixed_lr_5,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_both_learn_fixed_lr_5[cj_pred_ma_both_learn_fixed_lr_5$sub==s&cj_pred_ma_both_learn_fixed_lr_5$cor==1,"cj"] <- ma(subset(cj_pred_ma_both_learn_fixed_lr_5,sub==s&cor==1),n,"cj")
-  cj_pred_ma_no_learn_fixed_lr_5[cj_pred_ma_no_learn_fixed_lr_5$sub==s&cj_pred_ma_no_learn_fixed_lr_5$cor==0,"cj"] <- ma(subset(cj_pred_ma_no_learn_fixed_lr_5,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_no_learn_fixed_lr_5[cj_pred_ma_no_learn_fixed_lr_5$sub==s&cj_pred_ma_no_learn_fixed_lr_5$cor==1,"cj"] <- ma(subset(cj_pred_ma_no_learn_fixed_lr_5,sub==s&cor==1),n,"cj")
-  cj_pred_ma_beta_learn_fixed_lr_1[cj_pred_ma_beta_learn_fixed_lr_1$sub==s&cj_pred_ma_beta_learn_fixed_lr_1$cor==0,"cj"] <- ma(subset(cj_pred_ma_beta_learn_fixed_lr_1,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_beta_learn_fixed_lr_1[cj_pred_ma_beta_learn_fixed_lr_1$sub==s&cj_pred_ma_beta_learn_fixed_lr_1$cor==1,"cj"] <- ma(subset(cj_pred_ma_beta_learn_fixed_lr_1,sub==s&cor==1),n,"cj")
-  cj_pred_ma_alpha_learn_fixed_lr_1[cj_pred_ma_alpha_learn_fixed_lr_1$sub==s&cj_pred_ma_alpha_learn_fixed_lr_1$cor==0,"cj"] <- ma(subset(cj_pred_ma_alpha_learn_fixed_lr_1,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_alpha_learn_fixed_lr_1[cj_pred_ma_alpha_learn_fixed_lr_1$sub==s&cj_pred_ma_alpha_learn_fixed_lr_1$cor==1,"cj"] <- ma(subset(cj_pred_ma_alpha_learn_fixed_lr_1,sub==s&cor==1),n,"cj")
-  cj_pred_ma_both_learn_fixed_lr_1[cj_pred_ma_both_learn_fixed_lr_1$sub==s&cj_pred_ma_both_learn_fixed_lr_1$cor==0,"cj"] <- ma(subset(cj_pred_ma_both_learn_fixed_lr_1,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_both_learn_fixed_lr_1[cj_pred_ma_both_learn_fixed_lr_1$sub==s&cj_pred_ma_both_learn_fixed_lr_1$cor==1,"cj"] <- ma(subset(cj_pred_ma_both_learn_fixed_lr_1,sub==s&cor==1),n,"cj")
-  cj_pred_ma_no_learn_fixed_lr_1[cj_pred_ma_no_learn_fixed_lr_1$sub==s&cj_pred_ma_no_learn_fixed_lr_1$cor==0,"cj"] <- ma(subset(cj_pred_ma_no_learn_fixed_lr_1,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_no_learn_fixed_lr_1[cj_pred_ma_no_learn_fixed_lr_1$sub==s&cj_pred_ma_no_learn_fixed_lr_1$cor==1,"cj"] <- ma(subset(cj_pred_ma_no_learn_fixed_lr_1,sub==s&cor==1),n,"cj")
 }
-cj_pred_ma_beta_learn_fixed_lr_5$model <- "beta"
-cj_pred_ma_alpha_learn_fixed_lr_5$model <- "alpha"
-cj_pred_ma_no_learn_fixed_lr_5$model <- "no"
-cj_pred_ma_both_learn_fixed_lr_5$model <- "both"
-cj_pred_fixed_lr_5 <- rbind(cj_pred_ma_no_learn_fixed_lr_5,cj_pred_ma_alpha_learn_fixed_lr_5,
-                            cj_pred_ma_beta_learn_fixed_lr_5,cj_pred_ma_both_learn_fixed_lr_5)
-cj_pred_ma_beta_learn_fixed_lr_1$model <- "beta"
-cj_pred_ma_alpha_learn_fixed_lr_1$model <- "alpha"
-cj_pred_ma_no_learn_fixed_lr_1$model <- "no"
-cj_pred_ma_both_learn_fixed_lr_1$model <- "both"
-cj_pred_fixed_lr_1 <- rbind(cj_pred_ma_no_learn_fixed_lr_1,cj_pred_ma_alpha_learn_fixed_lr_1,
-                            cj_pred_ma_beta_learn_fixed_lr_1,cj_pred_ma_both_learn_fixed_lr_1)
+
 cj_pred_ma_beta_learn$model <- "beta"
 cj_pred_ma_alpha_learn$model <- "alpha"
 cj_pred_ma_no_learn$model <- "no"
@@ -1310,74 +1167,6 @@ for (m in models) {
   
 }
 
-# Model comparison --------------------------------------------------------
-par$Ndata_point <-  round(nrow(Data)/Nsub)
-par$Npar <- 3
-par[par$model=="no",'Npar'] <- 2
-par[par$model=="both",'Npar'] <- 4
-
-bic_custom <- function(Residuals,k,n){
-  return(log(n)*k+n*log(Residuals/n))
-}
-
-par$bic <- bic_custom(par$cost_ldc,par$Npar,par$Ndata_point)
-mean_bic <- with(par,aggregate(bic,by=list(model=model,manip=manip),mean))
-mean_bic$delta <- -99
-mean_bic[mean_bic$manip=="alpha","delta"] <- 
-  mean_bic[mean_bic$manip=="alpha",]$x - 
-  min(mean_bic[mean_bic$manip=="alpha",]$x)
-mean_bic[mean_bic$manip=="beta","delta"] <- 
-  mean_bic[mean_bic$manip=="beta",]$x -
-  min(mean_bic[mean_bic$manip=="beta",]$x)
-
-check <- subset(par,model=='both')
-summary(check)
-hist(check$eta_a)
-### Plot BIC distribution
-model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
-model_bic <- cast(model_bic, sub + manip ~ model)
-table(apply(model_bic[,3:5],1,which.min))
-models_ord <- names(model_bic)[3:6]
-model_bic$best <- models_ord[apply(model_bic[,3:5],1,which.min)]
-with(model_bic,aggregate(best,list(manip),table))
-table(subset(model_bic,manip=='alpha')$best)
-table(subset(model_bic,manip=='beta')$best)
-jpeg(filename="comparison_bic.jpg",width=10,height=8,units='cm',res=300)
-plot(density(model_bic$alpha,from = 0,to = .02), bty = 'n', main = "", xlab = "bic",
-     col = "darkred",lwd=2)
-lines(density(model_bic$beta,from = 0,to = .02),col="orange",lwd=2)
-lines(density(model_bic$both,from = 0,to = .02),col="cyan",lwd=2)
-lines(density(model_bic$no,from = 0,to = .02),col="green",lwd=2)
-legend("topright",c("Alpha learn","Beta learn","Both learn", "No learn"),col=c("darkred","orange","cyan","green"),
-       lty = 1,bty='n',lwd=2)
-dev.off()
-
-### Correlations with empirical
-# cor_baseline <- with(Data,aggregate(cj,by=list(sub,manip),mean))
-# names(cor_baseline) <- c('sub','manip','cor')
-# cor_baseline$cor <- NA
-# cor_alpha_learn <- cor_baseline
-# names(cor_alpha_learn) <- c('sub','manip','cor_alpha')
-# cor_beta_learn <- cor_baseline
-# names(cor_beta_learn) <- c('sub','manip','cor_beta')
-# for (s in 1:Nsub) {
-#   tempdat <- subset(Data,sub==subs[s])
-#   cor_baseline[cor_baseline$sub==subs[s],'cor'] <- cor(tempdat$cj,tempdat$cj_pred)
-#   cor_alpha_learn[cor_alpha_learn$sub==subs[s],'cor_alpha'] <- cor(tempdat$cj,tempdat$cj_pred_alpha_learn)
-#   cor_beta_learn[cor_beta_learn$sub==subs[s],'cor_beta'] <- cor(tempdat$cj,tempdat$cj_pred_beta_learn)
-# }
-# cors <- merge(merge(cor_baseline,cor_alpha_learn),cor_beta_learn)
-# table(apply(cors[,3:5],1,which.min))
-# 
-# jpeg(filename="comparison_correlation.jpg",width=10,height=8,units='cm',res=300)
-# plot(density(cors$cor_beta,from = 0,to = 1), bty = 'n', main = "", xlab = "Empirical/Prediction correlation",
-#      col = "darkred",lwd=2)
-# lines(density(cors$cor,from = 0,to = 1),col="orange",lwd=2)
-# lines(density(cors$cor_alpha,from = 0,to = 1),col="cyan",lwd=2)
-# legend("topleft",c("Baseline","Alpha learn","Beta learn"),col=c("orange","cyan","darkred"),
-#        lty = 1,bty='n',lwd=2)
-# dev.off()
-
 # Plot correlation between observed and predicted -------------------------
 plot(Data$cj,Data$cj_pred)
 library(vioplot)
@@ -1415,36 +1204,6 @@ abline(lm(Data$cj~Data$cj_pred)$coef[1],lm(Data$cj~Data$cj_pred)$coef[2]/6)
 dev.off()
 
 # Split trials in each phase -----------------------------------------
-if (stat_tests) {
-  m.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
-  m.cond <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
-  anova(m.int,m.cond)
-  m.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
-                  control = lmerControl(optimizer='bobyqa'))
-  m.cond.cor <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
-  anova(m.cond,m.cond.cor)
-  m.cond.cor.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
-  m.cond.cor.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
-                         control = lmerControl(optimizer='bobyqa'))
-  anova(m.cond.cor,m.cond.cor.int)
-  anova(m.cond.cor)
-  
-  
-  m.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
-  m.cond <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
-  anova(m.int,m.cond)
-  m.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
-                  control = lmerControl(optimizer='bobyqa'))
-  m.cond.cor <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
-  anova(m.cond,m.cond.cor)
-  m.cond.cor.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
-  m.cond.cor.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
-                         control = lmerControl(optimizer='bobyqa'))
-  anova(m.cond.cor,m.cond.cor.int)
-  anova(m.cond.cor)
-  emm <- emmeans(m.cond.cor, ~ condition | cor)
-  pairs(emm)
-}
 Nphase_trial <- length(unique(Data$withinphasetrial))
 Nphase_block <- 18
 Data$phase_block <-  Data$withinphasetrial %/% (Nphase_trial/Nphase_block)
@@ -4612,3 +4371,44 @@ for (m in models) {
   
 }
 
+
+# One big experiment ------------------------------------------------------
+
+if (stat_tests) {
+  # RT
+  m.int <- lmer(log(rt)~condition*difflevel*manip + (1|sub),data = Data,REML = F)
+  m.cond <- lmer(log(rt)~condition*difflevel*manip + (condition|sub),data = Data,REML = F)
+  anova(m.int,m.cond)
+  m.diff <- lmer(rt~condition*difflevel*manip + (difflevel|sub),data = Data,REML = F,
+                 lmerControl(optimizer = 'bobyqa')) #Singular fit
+  leveneTest(residuals(m.cond) ~ Data$condition) #Homogeneity of variance
+  qqmath(m.cond) #Normality
+  anova(m.cond) #Results
+  
+  # Accuracy
+  m.int <- glmer(cor~condition*difflevel + (1|sub),data=Data,family=binomial)
+  m.cond <- glmer(cor~condition*difflevel + (condition|sub),data=Data,family=binomial); 
+  anova(m.int,m.cond)
+  m.diff <- glmer(cor~condition*difflevel*manip + (difflevel|sub),data=Data,family=binomial); #singular
+  leveneTest(residuals(m.cond) ~ Data$condition) #Homogeneity of variance
+  plot(m.int)
+  Anova(m.int)
+  
+  # Confidence
+  Data$cor <- as.factor(Data$cor)
+  m.int <- lmer(cj ~ condition*cor*difflevel*manip + (1|sub),data = Data,REML = F); 
+  m.cond <- lmer(cj ~ condition*cor*difflevel*manip + (condition|sub),data = Data,REML = F); 
+  anova(m.int,m.cond)
+  m.cond.acc <- lmer(cj ~ condition*cor*difflevel*manip + (cor + condition|sub),data = Data, REML = F)
+  anova(m.cond,m.cond.acc)
+  m.all <- lmer(cj ~ condition*cor*difflevel*manip + (cor + condition + difflevel|sub),
+                data = Data, REML = F) # Failed to converge
+  m.cond.acc.x <- lmer(cj ~ condition*cor*difflevel*manip + (cor * condition|sub),
+                       data = Data, REML = F,control = lmerControl(optimizer = 'bobyqa'))
+  anova(m.cond.acc,m.cond.acc.x)
+  plot(resid(m.cond.acc.x),Data$cj) #Linearity
+  plot(m.cond.acc.x)
+  leveneTest(residuals(m.cond.acc.x) ~ Data$cor*Data$condition*Data$difflevel*Data$manip) #Homogeneity of variance
+  qqmath(m.cond.acc.x) #Normality
+  anova(m.cond.acc.x) #Results
+}
