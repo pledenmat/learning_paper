@@ -167,7 +167,7 @@ par_bin_mid <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = N
 par_ev_unknown <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                              sub = subs,manip=NA, model = "ev_unknown",Npar = 4,family = "ev_unknown")
 par_mean_ev <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                             sub = subs,manip=NA, model = "mean_ev",Npar = 4,family = "ev_unknown")
+                          sub = subs,manip=NA, model = "mean_ev",Npar = 4,family = "ev_unknown")
 
 
 simDat_alpha_bin <- simDat_alpha

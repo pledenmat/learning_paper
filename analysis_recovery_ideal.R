@@ -159,7 +159,6 @@ names(conf_min_se) <- c("trial","cor","cj")
 
 xlen <- dim(conf_min)[1]/2
 conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
 conf_min_cor <- subset(conf_min,cor==1)$cj
 conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
 

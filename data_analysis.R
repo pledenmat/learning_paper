@@ -12,7 +12,7 @@ library(car)
 library(zoo) # rollapply
 library(colorBlindness)
 library(scales)
-library(hrbrthemes)
+# library(hrbrthemes)
 library(ggplot2)
 library(geomtextpath)
 sourceCpp("ldc_train.cpp")
@@ -20,7 +20,7 @@ source("ldc_nn_functions.R")
 plots <- F
 stat_tests <- F
 
-# Function ----------------------------------------------------------------
+# Function & plot parameters ----------------------------------------------------------------
 max_count <- function(data){
   return(max(table(data)))
 }
@@ -32,6 +32,33 @@ error.bar <- function(x, y, upper, lower=upper, length=0.1,...){
     stop("vectors must be same length")
   arrows(x,y+upper, x, y-lower, angle=90, code=3, length=length, ...)
 }
+
+se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
+
+#' Function to get the right font size in points
+cex_size <- function(size,cex.layout) {
+  return(size/(par()$ps*cex.layout))
+}
+### Adjust sizes and positions
+cex.layout <- .66
+
+title_line <- -2
+cex.title <- 3
+cex.lab <- 3
+cex.axis <- 2
+cex.legend <- 2
+# Text
+cex.legend <- cex_size(8,cex.layout)
+cex.phase <- cex_size(11,cex.layout)*cex.layout
+cex.main <- cex_size(12,cex.layout)
+cex.axis <- cex_size(8,cex.layout) 
+cex.lab <- cex_size(10,cex.layout)*cex.layout
+cex.lab.rel <- cex_size(10,cex.layout) # In a big layout, cex for mtext and cex.lab differ
+cex.trialtype <- cex_size(8,cex.layout)
+# Lines and dots
+lwd.dat <- 1.5
+cex.datdot <- 1.125
+cex.legend.square <- 3
 # Preprocessing -----------------------------------------------
 go_to("data")
 
@@ -49,11 +76,11 @@ Data <- subset(Data, sub %in% finished_exp)
 
 # Extract post-experiment questionnaire
 questions <- Data[complete.cases(Data$questionID),
-                  c("sub","age","gender","handedness","questionID","questionResp")]
+                  c("sub","age","gender","manip","handedness","questionID","questionResp")]
 
 # Remove questionnaire from main data frame
 Data <- Data[complete.cases(Data$block),]
-rm_col <- c("File","questionID","questionResp","X","ï..sub")
+rm_col <- c("File","questionID","questionResp","X","?..sub")
 Data <- Data[,-which(names(Data) %in% rm_col)]
 
 
@@ -62,6 +89,19 @@ Ntrials <- dim(Data)[1]/Nsub
 
 Data$response <- 0
 Data[Data$resp=="['c']",'response'] <- 1
+
+Data[Data$manip=='alfa','manip'] <- 'alpha'
+
+
+# Demographics
+age_alpha <- with(subset(Data,manip=='alpha'),aggregate(age,by=list(sub),mean))
+summary(age_alpha$x)
+gender_alpha <- table(subset(Data,manip=='alpha')$gender)/756
+
+age_beta <- with(subset(Data,manip=='beta'),aggregate(age,by=list(sub),mean))
+summary(age_beta$x)
+sd(age_beta$x)
+gender_beta <- table(subset(Data,manip=='beta')$gender)/756
 
 ## Diagnostic plot per participant + chance performance testing
 exclusion <- c()
@@ -90,14 +130,18 @@ for(i in 1:Nsub){
 }
 par(mar=c(5,4,4,2)+.1,mfrow=c(1,1))
 
+table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
+
 #' Filter out participants who reported only one confidence level 
 #' more than 85% of the time
 conf_count <- with(Data,aggregate(cj,by=list(sub=sub),max_count))
 conf_count$x <- conf_count$x/Ntrials
 exclusion <- c(exclusion, unique(conf_count[conf_count$x>.85,"sub"]))
 
-Data <- subset(Data,!(sub %in% exclusion))
+table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
 
+Data <- subset(Data,!(sub %in% exclusion))
+questions <- subset(questions,!(sub %in% exclusion))
 
 # Convert RTs to seconds
 Data$rt <- Data$rt/1000
@@ -107,10 +151,9 @@ Data$response[Data$response==0] <- -1
 
 Data$condition <- as.factor(Data$condition)
 Data$difflevel <- as.factor(Data$difflevel)
-Data$sub <- as.factor(Data$sub)
+# Data$sub <- as.factor(Data$sub)
 subs <- unique(Data$sub); Nsub <- length(subs)
 
-Data[Data$manip=='alfa','manip'] <- 'alpha'
 names(Data)[1] <- "trial"
 
 # Confidence and feedback on scale from 0 to 1
@@ -120,9 +163,9 @@ Data$fb <- Data$fb/100
 Data$rt2 <- Data$rt + Data$RTconf # Total RT
 
 # Separate participants according to which condition was first for plotting
-Data$group <- "plus_first"
+Data$order <- "plus_first"
 minus_first <- unique(subset(Data,phase==0&condition=='minus')$sub)
-Data[Data$sub %in% minus_first,"group"] <- "minus_first"
+Data[Data$sub %in% minus_first,"order"] <- "minus_first"
 
 setwd("..")
 Nskip <- 0
@@ -136,102 +179,155 @@ Nphase_trial <- length(unique(Data$withinphasetrial))
 Nphase_block <- 4
 Data$phase_block <-  Data$withinphasetrial %/% (Nphase_trial/Nphase_block)
 Data$phase_block <- as.factor(Data$phase_block)
-Data$cor <- as.factor(Data$cor)
+# Data$cor <- as.factor(Data$cor)
 
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
 
-# Demographics
-age_alpha <- with(Data_alpha,aggregate(age,by=list(sub),mean))
-summary(age_alpha$x)
-gender_alpha <- table(Data_alpha$gender)
-
-age_beta <- with(Data_beta,aggregate(age,by=list(sub),mean))
-summary(age_beta$x)
-gender_beta <- table(Data_beta$gender)
-
-# Behavior analysis -----------------------------------------------------------
+# Behavior analysis - Dynamics -----------------------------------------------------------
 if (stat_tests) {
+  control <- lmerControl(optimizer = "bobyqa")
+  glmercontrol <- glmerControl(optimizer = "bobyqa")
+  
+  # Set contrast coding
+  options(contrasts=c("contr.sum","contr.poly"))
+  
   ## Replication of previous experiments (static effects)
   # RT
-  m.cond <- lmer(rt~condition*difflevel + (condition|sub),data = Data_alpha,REML = F)
-  m.diff <- lmer(rt~condition*difflevel + (difflevel|sub),data = Data_alpha,REML = F)
-  anova(m.cond)
+  rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F,control = control)
+  rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,REML = F,control = control)
+  anova(rt.int.alpha,rt.cond.alpha)
+  # Singular fit
+  rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_alpha,REML = F,control = control)
+  anova(rt.cond.alpha)
   
-  m.cond <- lmer(rt~condition*difflevel + (condition|sub),data = Data_beta,REML = F)
-  m.diff <- lmer(rt~condition*difflevel + (difflevel|sub),data = Data_beta,REML = F)
-  anova(m.cond)
-  post_hoc <- emmeans(m.cond,~condition)
-  pairs(post_hoc)
+  rt.int.beta <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F,control = control)
+  rt.cond.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = Data_beta,REML = F,control = control)
+  anova(rt.int.beta,rt.cond.beta)
+  # Singular fit
+  rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_beta,REML = F,control = control)
+  anova(rt.cond.beta)
   
   # Accuracy
-  m.int <- glmer(cor~condition*difflevel + (1|sub),data = Data_alpha,family = binomial)
-  m.cond <- glmer(cor~condition*difflevel + (condition|sub),data = Data_alpha,family = binomial)
-  m.diff <- glmer(cor~condition*difflevel + (difflevel|sub),data = Data_alpha,family = binomial)
-  Anova(m.cond, type=3)
+  acc.int.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
+  acc.cond.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,family = binomial, control = glmercontrol)
+  anova(acc.int.alpha,acc.cond.alpha)
+  acc.cond.diff.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_alpha,family = binomial)
+  Anova(acc.cond.alpha)
   
-  m.int <- glmer(cor~condition*difflevel + (1|sub),data = Data_beta,family = binomial)
-  m.cond <- glmer(cor~condition*difflevel + (condition|sub),data = Data_beta,family = binomial)
-  m.diff <- glmer(cor~condition*difflevel + (difflevel|sub),data = Data_beta,family = binomial)
-  Anova(m.cond)
+  acc.int.beta <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_beta,family = binomial, control = glmercontrol)
+  acc.cond.beta <- glmer(cor~condition*difflevel*withinphasetrial + (condition|sub),data = Data_beta,family = binomial, control = glmercontrol)
+  anova(acc.int.beta,acc.cond.beta)
+  acc.cond.diff.beta <- glmer(cor~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_beta,family = binomial)
+  Anova(acc.cond.beta)
   
   # Alpha
-  m.int <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_alpha,REML = F); 
-  m.cond <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_alpha,REML = F); 
+  cj.int.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F, ,control = control); 
+  cj.cond.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,REML = F, ,control = control); 
   anova(m.int,m.cond)
-  m.cond.acc <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_alpha, REML = F)
+  cj.cond.acc.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_alpha, REML = F, ,control = control)
   anova(m.cond,m.cond.acc)
-  m.cond.acc.x <- lmer(cj ~ condition*cor*difflevel + (cor * condition|sub),
-                       data = Data_alpha, REML = F,control = lmerControl(optimizer = 'bobyqa'))
-  anova(m.cond.acc,m.cond.acc.x)
-  plot(resid(m.cond.acc.x),Data_alpha$cj) #Linearity
-  leveneTest(residuals(m.cond.acc.x) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
-  qqmath(m.cond.acc.x) #Normality
-  anova(m.cond.acc.x) #Results
+  # Singular fit
+  # cj.cond.acc.difflevel.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
+  #                      data = Data_alpha, REML = F,control = control)
+  cj.cond.acc.interaction.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                        data = Data_alpha, REML = F,control = control)
+  plot(resid(cj.cond.acc.interaction.alpha),Data_alpha$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.alpha) #Normality
+  anova(cj.cond.acc.interaction.alpha) #Results
   
   # Beta
-  m.int <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_beta,REML = F); 
-  m.cond <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_beta,REML = F); 
+  cj.int.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F, ,control = control); 
+  cj.cond.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_beta,REML = F, ,control = control); 
+  anova(cj.int.beta,cj.cond.beta)
+  cj.cond.acc.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_beta, REML = F, ,control = control)
+  anova(cj.cond.beta,cj.cond.acc.beta)
+  # Singular fit
+  # cj.cond.acc.difflevel.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
+  #                      data = Data_beta, REML = F,control = control)
+  cj.cond.acc.interaction.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                       data = Data_beta, REML = F,control = control)
+  anova(cj.cond.acc.beta,cj.cond.acc.interaction.beta)
+  plot(resid(cj.cond.acc.interaction.beta),Data_beta$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.beta) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.beta) #Normality
+  anova(cj.cond.acc.interaction.beta) #Results  
+  vif(cj.cond.acc.interaction.beta)
+}
+
+
+# Behavior analysis - Static ----------------------------------------------
+if (stat_tests) {
+  control <- lmerControl(optimizer = "bobyqa")
+  glmercontrol <- glmerControl(optimizer = "bobyqa")
+  
+  # Set contrast coding
+  options(contrasts=c("contr.sum","contr.poly"))
+  
+  ## Replication of previous experiments (static effects)
+  # RT
+  rt.int.alpha.static <- lmer(rt~condition*difflevel + (1|sub),data = Data_alpha,REML = F,control = control)
+  rt.cond.alpha.static <- lmer(rt~condition*difflevel + (condition|sub),data = Data_alpha,REML = F,control = control)
+  anova(rt.int.alpha.static,rt.cond.alpha.static)
+  # Singular fit
+  rt.cond.diff.alpha.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = Data_alpha,REML = F,control = control)
+  anova(rt.cond.alpha.static)
+  
+  rt.int.beta.static <- lmer(rt~condition*difflevel + (1|sub),data = Data_beta,REML = F,control = control)
+  rt.cond.beta.static <- lmer(rt~condition*difflevel + (condition|sub),data = Data_beta,REML = F,control = control)
+  anova(rt.int.beta.static,rt.cond.beta.static)
+  # Singular fit
+  rt.cond.diff.beta.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = Data_beta,REML = F,control = control)
+  anova(rt.cond.beta.static)
+
+  # Accuracy
+  acc.int.alpha.static <- glmer(cor~condition*difflevel + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
+  acc.cond.alpha.static <- glmer(cor~condition*difflevel + (condition|sub),data = Data_alpha,family = binomial, control = glmercontrol)
+  anova(acc.int.alpha.static,acc.cond.alpha.static)
+  acc.cond.diff.alpha.static <- glmer(cor~condition*difflevel + (condition+difflevel|sub),data = Data_alpha,family = binomial)
+  Anova(acc.cond.alpha.static)
+  
+  acc.int.beta.static <- glmer(cor~condition*difflevel + (1|sub),data = Data_beta,family = binomial, control = glmercontrol)
+  acc.cond.beta.static <- glmer(cor~condition*difflevel + (condition|sub),data = Data_beta,family = binomial, control = glmercontrol)
+  anova(acc.int.beta.static,acc.cond.beta.static)
+  acc.cond.diff.beta.static <- glmer(cor~condition*difflevel + (condition+difflevel|sub),data = Data_beta,family = binomial)
+  Anova(acc.cond.beta.static)
+  
+  # Alpha
+  cj.int.alpha.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_alpha,REML = F, ,control = control); 
+  cj.cond.alpha.static <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_alpha,REML = F, ,control = control); 
   anova(m.int,m.cond)
-  m.cond.acc <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_beta, REML = F)
+  cj.cond.acc.alpha.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_alpha, REML = F, ,control = control)
   anova(m.cond,m.cond.acc)
-  m.cond.acc.x <- lmer(cj ~ condition*cor*difflevel + (cor * condition|sub),
-                       data = Data_beta, REML = F,control = lmerControl(optimizer = 'bobyqa'))
-  anova(m.cond.acc,m.cond.acc.x)
-  plot(resid(m.cond.acc.x),Data_beta$cj) #Linearity
-  leveneTest(residuals(m.cond.acc.x) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
-  qqmath(m.cond.acc.x) #Normality
-  anova(m.cond.acc.x) #Results
+  # Singular fit
+  # cj.cond.acc.difflevel.alpha.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition + difflevel|sub),
+  #                      data = Data_alpha, REML = F,control = control)
+  cj.cond.acc.interaction.alpha.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition + condition:cor|sub),
+                                               data = Data_alpha, REML = F,control = control)
+  plot(resid(cj.cond.acc.interaction.alpha.static),Data_alpha$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.alpha.static) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.alpha.static) #Normality
+  anova(cj.cond.acc.interaction.alpha.static) #Results
   
-  m.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
-  m.cond <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
-  anova(m.int,m.cond)
-  m.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
-                  control = lmerControl(optimizer='bobyqa'))
-  m.cond.cor <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
-  anova(m.cond,m.cond.cor)
-  m.cond.cor.trial <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
-  m.cond.cor.int <- lmer(data = Data_alpha, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
-                         control = lmerControl(optimizer='bobyqa'))
-  anova(m.cond.cor,m.cond.cor.int)
-  anova(m.cond.cor)
-  
-  
-  m.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (1|sub),REML = F)
-  m.cond <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition|sub),REML = F)
-  anova(m.int,m.cond)
-  m.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (withinphasetrial|sub),REML = F,
-                  control = lmerControl(optimizer='bobyqa'))
-  m.cond.cor <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor|sub),REML = F)
-  anova(m.cond,m.cond.cor)
-  m.cond.cor.trial <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition+cor+withinphasetrial|sub),REML = F)
-  m.cond.cor.int <- lmer(data = Data_beta, cj ~ condition*withinphasetrial*cor + (condition*cor|sub),REML = F,
-                         control = lmerControl(optimizer='bobyqa'))
-  anova(m.cond.cor,m.cond.cor.int)
-  anova(m.cond.cor)
-  emm <- emmeans(m.cond.cor, ~ condition | cor)
-  pairs(emm)
-  
+  # Beta
+  cj.int.beta.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_beta,REML = F, ,control = control); 
+  cj.cond.beta.static <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_beta,REML = F, ,control = control); 
+  anova(cj.int.beta.static,cj.cond.beta.static)
+  cj.cond.acc.beta.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_beta, REML = F, ,control = control)
+  anova(cj.cond.beta.static,cj.cond.acc.beta.static)
+  # Singular fit
+  # cj.cond.acc.difflevel.beta.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition + difflevel|sub),
+  #                      data = Data_beta, REML = F,control = control)
+  cj.cond.acc.interaction.beta.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition + condition:cor|sub),
+                                              data = Data_beta, REML = F,control = control)
+  anova(cj.cond.acc.beta.static,cj.cond.acc.interaction.beta.static)
+  plot(resid(cj.cond.acc.interaction.beta.static),Data_beta$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.beta.static) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.beta.static) #Normality
+  anova(cj.cond.acc.interaction.beta.static) #Results  
+  post_hoc <- emmeans(cj.cond.acc.interaction.beta.static, ~ difflevel)
+  pairs(post_hoc)
 }
 
 # Plot Feedback presented ------------------------------------------------
@@ -518,7 +614,6 @@ if (plots) {
 
 # Plot static confidence - WIP --------------------------------------------
 
-# Plot Accuracy and RT ----------------------------------------------------
 if (plots) {
   if (is.factor(Data_alpha$cor)) {
     Data_alpha$cor <- as.numeric(Data_alpha$cor)-1
@@ -784,18 +879,39 @@ mean_bic[mean_bic$manip=="beta","delta"] <-
   mean_bic[mean_bic$manip=="beta",]$x -
   min(mean_bic[mean_bic$manip=="beta",]$x)
 
+# Plot differences in BIC
+jpeg("model_comparison.jpg",width=10,height=10,units = 'cm',res=600)
+bp <- barplot(subset(mean_bic,manip=='beta')$delta,ylab = expression(paste(Delta,"BIC")), xlab = "")
+# Add model names under each bar
+bp.labels <- subset(mean_bic,manip=='beta')$model
+bp.labels[bp.labels=="alpha"] <- expression(paste(alpha,"-learning"))
+bp.labels[bp.labels=="beta"] <- expression(paste(beta,"-learning"))
+bp.labels[bp.labels=="both"] <- "Full learning"
+bp.labels[bp.labels=="no"] <- "No learning"
+text(x = bp, y = -0.5, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
+dev.off()
 ### Best model per participant
 model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
 model_bic <- cast(model_bic, sub + manip ~ model)
 models_ord <- names(model_bic)[3:6]
-model_bic$best <- models_ord[apply(model_bic[,3:5],1,which.min)]
+model_bic$best <- models_ord[apply(model_bic[,3:6],1,which.min)]
 with(model_bic,aggregate(best,list(manip),table))
 table(subset(model_bic,manip=='alpha')$best)
 table(subset(model_bic,manip=='beta')$best)
 
+sub_nolearn_best <- subset(model_bic,best=='no')$sub
+sub_learn_best <- subset(model_bic,best!='no')$sub
+
+model_bic_learn_vs_nolearn <- subset(model_bic,manip=='beta')[,c('sub','manip','both','no','best')]
+model_bic_learn_vs_nolearn$best <- c("both","no")[apply(model_bic_learn_vs_nolearn[,3:4],1,which.min)]
+table(model_bic_learn_vs_nolearn$best)
+
 # Add the best model to the empirical data frame
+if ("best" %in% names(Data)) {
+  Data <- Data[,!(names(Data) == "best")]
+}
 Data <- merge(Data,model_bic[,c('sub','manip','best')])
-Data$best <- as.factor(Data_test$best)
+Data$best <- as.factor(Data$best)
 
 # Add a column with the predicted confidence from the best model per participant to the empirical data frame
 Data$cj_pred_best <- NA
@@ -875,13 +991,7 @@ cj_pred <- rbind(cj_pred_ma_no_learn,cj_pred_ma_alpha_learn,
 width <- 16 # Plot size expressed in cm
 height <- 10
 
-se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
 
-title_line <- -2
-cex.title <- 3
-cex.lab <- 3
-cex.axis <- 2
-cex.legend <- 2
 go_to("plots")
 go_to("alternating_fb")
 go_to("trim")
@@ -1404,341 +1514,6 @@ for (m in models) {
             lwd=2, col = VERMILLION)
 
   dev.off()
-  
-  
-  ## Do the same with models with fixed learning rate
-  cj_pred <- with(subset(anal_sim_fixed_lr_5,model==m),aggregate(cj,by=list(trial,sub),mean))
-  names(cj_pred) <- c("trial","sub","cj")
-  cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  alpha <- with(subset(anal_sim_fixed_lr_5,model==m),aggregate(alpha,by=list(trial,sub),mean))
-  names(alpha) <- c("trial","sub","alpha")
-  alpha <- merge(alpha,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  beta <- with(subset(anal_sim_fixed_lr_5,model==m),aggregate(beta,by=list(trial,sub),mean))
-  names(beta) <- c("trial","sub","beta")
-  beta <- merge(beta,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  
-  conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
-  names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
-  
-  conf_alpha_pred_count <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor, fun.aggregate = length)
-  conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-  conf_alpha_pred_sd <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-  conf_alpha_pred_sd[,2:5] <- conf_alpha_pred_sd[,2:5]/sqrt(conf_alpha_pred_count[,2:5])
-  
-  conf_beta_pred_count <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor, fun.aggregate = length)
-  conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-  conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-  conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
-  
-  alpha_group_pred <- with(alpha,aggregate(alpha,by=list(phase_block,manip,sub,condition),mean))
-  names(alpha_group_pred) <- c('phase_block','manip','sub','condition','cj')
-  
-  alpha_alpha_pred_count <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition, fun.aggregate = length)
-  alpha_alpha_pred <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  alpha_alpha_pred_sd <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  alpha_alpha_pred_sd[,2:3] <- alpha_alpha_pred_sd[,2:3]/sqrt(alpha_alpha_pred_count[,2:3])
-  
-  alpha_beta_pred_count <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition, fun.aggregate = length)
-  alpha_beta_pred <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  alpha_beta_pred_sd <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  alpha_beta_pred_sd[,2:3] <- alpha_beta_pred_sd[,2:3]/sqrt(alpha_beta_pred_count[,2:3])
-  
-  
-  beta_group_pred <- with(beta,aggregate(beta,by=list(phase_block,manip,sub,condition),mean))
-  names(beta_group_pred) <- c('phase_block','manip','sub','condition','cj')
-  
-  beta_alpha_pred_count <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition, fun.aggregate = length)
-  beta_alpha_pred <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  beta_alpha_pred_sd <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  beta_alpha_pred_sd[,2:3] <- beta_alpha_pred_sd[,2:3]/sqrt(beta_alpha_pred_count[,2:3])
-  
-  beta_beta_pred_count <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition, fun.aggregate = length)
-  beta_beta_pred <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  beta_beta_pred_sd <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  beta_beta_pred_sd[,2:3] <- beta_beta_pred_sd[,2:3]/sqrt(beta_beta_pred_count[,2:3])
-  
-  xlen <- nrow(conf_alpha)
-  go_to("plots")
-  tiff(paste0('trace_aggreg_alpha_',m,'_learn_fixed_lr_5.tiff'), width = 36, height = 36, units = 'cm', res = 300)
-  layout(matrix(c(1,2,1,3),ncol=2))
-  par(mar=c(5,5,4,2)+.1)
-  
-  plot(conf_alpha$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',
-       main=paste("Alpha-Manipulated Feedback, eta_a = ",eta_a_5[which(models==m)],", eta_b = ",eta_b_5[which(models==m)]),
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
-       xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(conf_alpha$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-  lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-  error.bar(1:xlen,conf_alpha$minus_0,conf_alpha_sd$minus_0,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,conf_alpha$plus_0,conf_alpha_sd$plus_0,
-            lwd=2, col = VERMILLION)
-  error.bar(1:xlen,conf_alpha$minus_1,conf_alpha_sd$minus_1,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,conf_alpha$plus_1,conf_alpha_sd$plus_1,
-            lwd=2, col = VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_0 + conf_alpha_pred_sd$minus_0,
-                             (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_1 + conf_alpha_pred_sd$minus_1,
-                             (conf_alpha_pred$minus_1 - conf_alpha_pred_sd$minus_1)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
-                             (conf_alpha_pred$plus_0 - conf_alpha_pred_sd$plus_0)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
-                             (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-         pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
-  
-  par(mar=c(5,5,0,2)+.1)
-  
-  plot(alpha_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(alpha_alpha_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,alpha_alpha_pred$minus,alpha_alpha_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,alpha_alpha_pred$plus,alpha_alpha_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  plot(beta_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(beta_alpha_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,beta_alpha_pred$minus,beta_alpha_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,beta_alpha_pred$plus,beta_alpha_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  dev.off()
-  
-  tiff(paste0('trace_aggreg_beta_',m,'_learn_fixed_lr_5.tiff'), width = 36, height = 36, units = 'cm', res = 300)
-  layout(matrix(c(1,2,1,3),ncol=2))
-  par(mar=c(5,5,4,2)+.1)
-  
-  plot(conf_beta$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',
-       main=paste("Beta-Manipulated Feedback, eta_a = ",eta_a_5[which(models==m)],", eta_b = ",eta_b_5[which(models==m)]),
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
-       xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-  lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-  error.bar(1:length(conf_beta$minus_0),conf_beta$minus_0,conf_beta_sd$minus_0,
-            lwd=2, col = BLUE)
-  error.bar(1:length(conf_beta$plus_0),conf_beta$plus_0,conf_beta_sd$plus_0,
-            lwd=2, col = VERMILLION)
-  error.bar(1:length(conf_beta$minus_1),conf_beta$minus_1,conf_beta_sd$minus_1,
-            lwd=2, col = BLUE)
-  error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
-            lwd=2, col = VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
-                             (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_1 + conf_beta_pred_sd$minus_1,
-                             (conf_beta_pred$minus_1 - conf_beta_pred_sd$minus_1)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
-                             (conf_beta_pred$plus_0 - conf_beta_pred_sd$plus_0)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
-                             (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  par(mar=c(5,5,0,2)+.1)
-  
-  plot(alpha_beta_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(alpha_beta_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,alpha_beta_pred$minus,alpha_beta_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,alpha_beta_pred$plus,alpha_beta_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  plot(beta_beta_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(beta_beta_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,beta_beta_pred$minus,beta_beta_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,beta_beta_pred$plus,beta_beta_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  dev.off()
-  
-  
-  cj_pred <- with(subset(anal_sim_fixed_lr_1,model==m),aggregate(cj,by=list(trial,sub),mean))
-  names(cj_pred) <- c("trial","sub","cj")
-  cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  alpha <- with(subset(anal_sim_fixed_lr_1,model==m),aggregate(alpha,by=list(trial,sub),mean))
-  names(alpha) <- c("trial","sub","alpha")
-  alpha <- merge(alpha,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  beta <- with(subset(anal_sim_fixed_lr_1,model==m),aggregate(beta,by=list(trial,sub),mean))
-  names(beta) <- c("trial","sub","beta")
-  beta <- merge(beta,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  
-  conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
-  names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
-  
-  conf_alpha_pred_count <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor, fun.aggregate = length)
-  conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-  conf_alpha_pred_sd <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-  conf_alpha_pred_sd[,2:5] <- conf_alpha_pred_sd[,2:5]/sqrt(conf_alpha_pred_count[,2:5])
-  
-  conf_beta_pred_count <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor, fun.aggregate = length)
-  conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-  conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-  conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
-  
-  alpha_group_pred <- with(alpha,aggregate(alpha,by=list(phase_block,manip,sub,condition),mean))
-  names(alpha_group_pred) <- c('phase_block','manip','sub','condition','cj')
-  
-  alpha_alpha_pred_count <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition, fun.aggregate = length)
-  alpha_alpha_pred <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  alpha_alpha_pred_sd <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  alpha_alpha_pred_sd[,2:3] <- alpha_alpha_pred_sd[,2:3]/sqrt(alpha_alpha_pred_count[,2:3])
-  
-  alpha_beta_pred_count <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition, fun.aggregate = length)
-  alpha_beta_pred <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  alpha_beta_pred_sd <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  alpha_beta_pred_sd[,2:3] <- alpha_beta_pred_sd[,2:3]/sqrt(alpha_beta_pred_count[,2:3])
-  
-  beta_group_pred <- with(beta,aggregate(beta,by=list(phase_block,manip,sub,condition),mean))
-  names(beta_group_pred) <- c('phase_block','manip','sub','condition','cj')
-  
-  beta_alpha_pred_count <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition, fun.aggregate = length)
-  beta_alpha_pred <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  beta_alpha_pred_sd <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  beta_alpha_pred_sd[,2:3] <- beta_alpha_pred_sd[,2:3]/sqrt(beta_alpha_pred_count[,2:3])
-  
-  beta_beta_pred_count <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition, fun.aggregate = length)
-  beta_beta_pred <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  beta_beta_pred_sd <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  beta_beta_pred_sd[,2:3] <- beta_beta_pred_sd[,2:3]/sqrt(beta_beta_pred_count[,2:3])
-  
-  xlen <- nrow(conf_alpha)
-  go_to("plots")
-  tiff(paste0('trace_aggreg_alpha_',m,'_learn_fixed_lr_1.tiff'), width = 36, height = 36, units = 'cm', res = 300)
-  layout(matrix(c(1,2,1,3),ncol=2))
-  par(mar=c(5,5,4,2)+.1)
-  
-  plot(conf_alpha$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',
-       main=paste("Alpha-Manipulated Feedback, eta_a = ",eta_a_1[which(models==m)],", eta_b = ",eta_b_1[which(models==m)]),
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
-       xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(conf_alpha$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-  lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-  error.bar(1:xlen,conf_alpha$minus_0,conf_alpha_sd$minus_0,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,conf_alpha$plus_0,conf_alpha_sd$plus_0,
-            lwd=2, col = VERMILLION)
-  error.bar(1:xlen,conf_alpha$minus_1,conf_alpha_sd$minus_1,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,conf_alpha$plus_1,conf_alpha_sd$plus_1,
-            lwd=2, col = VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_0 + conf_alpha_pred_sd$minus_0,
-                             (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_1 + conf_alpha_pred_sd$minus_1,
-                             (conf_alpha_pred$minus_1 - conf_alpha_pred_sd$minus_1)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
-                             (conf_alpha_pred$plus_0 - conf_alpha_pred_sd$plus_0)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
-                             (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-         pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
-  
-  par(mar=c(5,5,0,2)+.1)
-  
-  plot(alpha_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(alpha_alpha_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,alpha_alpha_pred$minus,alpha_alpha_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,alpha_alpha_pred$plus,alpha_alpha_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  plot(beta_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(beta_alpha_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,beta_alpha_pred$minus,beta_alpha_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,beta_alpha_pred$plus,beta_alpha_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  dev.off()
-  
-  tiff(paste0('trace_aggreg_beta_',m,'_learn_fixed_lr_1.tiff'), width = 36, height = 36, units = 'cm', res = 300)
-  layout(matrix(c(1,2,1,3),ncol=2))
-  par(mar=c(5,5,4,2)+.1)
-  
-  plot(conf_beta$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',
-       main=paste("Beta-Manipulated Feedback, eta_a = ",eta_a_1[which(models==m)],", eta_b = ",eta_b_1[which(models==m)]),
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
-       xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-  lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-  error.bar(1:length(conf_beta$minus_0),conf_beta$minus_0,conf_beta_sd$minus_0,
-            lwd=2, col = BLUE)
-  error.bar(1:length(conf_beta$plus_0),conf_beta$plus_0,conf_beta_sd$plus_0,
-            lwd=2, col = VERMILLION)
-  error.bar(1:length(conf_beta$minus_1),conf_beta$minus_1,conf_beta_sd$minus_1,
-            lwd=2, col = BLUE)
-  error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
-            lwd=2, col = VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
-                             (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_1 + conf_beta_pred_sd$minus_1,
-                             (conf_beta_pred$minus_1 - conf_beta_pred_sd$minus_1)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
-                             (conf_beta_pred$plus_0 - conf_beta_pred_sd$plus_0)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
-                             (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  par(mar=c(5,5,0,2)+.1)
-  
-  plot(alpha_beta_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(alpha_beta_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,alpha_beta_pred$minus,alpha_beta_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,alpha_beta_pred$plus,alpha_beta_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  plot(beta_beta_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(beta_beta_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,beta_beta_pred$minus,beta_beta_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,beta_beta_pred$plus,beta_beta_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  dev.off()
-  
 }
 
 
@@ -2197,56 +1972,403 @@ par(mfrow=c(1,1))
 
 
 
+# Dynamic confidence plot according to group --------------------------------------------------------
+m <- 'both'
+
+conf_beta <- cast(subset(conf_group,manip=='beta' & sub%in%sub_nolearn_best),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_count <- cast(subset(conf_group,manip=='beta' & sub%in%sub_nolearn_best),phase_block~condition+cor,count_complete)
+conf_beta_sd <- cast(subset(conf_group,manip=='beta' & sub%in%sub_nolearn_best),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_sd[,2:5] <- conf_beta_sd[,2:5]/sqrt(conf_beta_count[,2:5])
+
+cj_pred <- with(subset(anal_sim,model==m & sub%in%sub_nolearn_best),aggregate(cj,by=list(trial,sub),mean))
+names(cj_pred) <- c("trial","sub","cj")
+cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
+
+conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
+
+conf_beta_pred_count <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor, fun.aggregate = length)
+conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
+
+cex_size <- function(size,cex.layout) {
+  return(size/(par()$ps*cex.layout))
+}
+### Adjust sizes and positions
+cex.layout <- 1
+# Text
+cex.legend <- cex_size(14,cex.layout)
+cex.axis <- cex_size(14,cex.layout) 
+cex.lab <- cex_size(18,cex.layout)
+line.width <- 1
+cex.pt <- .8
+
+
+jpeg("conf_beta_bothlearn_nolearnsub.jpeg",width=13.5,height=10,units="cm",res=300)
+par(mar=c(3,3,0,0)+.1)
+plot(conf_beta$minus_0,ylim=c(.7,.915),col = BLUE, type = 'l',main="",
+     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
+title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
+lines(conf_beta$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
+lines(conf_beta$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
+lines(conf_beta$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
+points(conf_beta$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta$minus_1, pch = 16, cex = cex.pt, col = BLUE)
+points(conf_beta$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+error.bar(1:length(conf_beta$minus_0),conf_beta$minus_0,conf_beta_sd$minus_0,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta$plus_0),conf_beta$plus_0,conf_beta_sd$plus_0,
+          lwd = line.width, col = VERMILLION)
+error.bar(1:length(conf_beta$minus_1),conf_beta$minus_1,conf_beta_sd$minus_1,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
+          lwd = line.width, col = VERMILLION)
+polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
+                           (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_1 + conf_beta_pred_sd$minus_1,
+                           (conf_beta_pred$minus_1 - conf_beta_pred_sd$minus_1)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
+                           (conf_beta_pred$plus_0 - conf_beta_pred_sd$plus_0)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
+                           (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+legend(0.5,.93,legend = c('High feedback','Low feedback'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16), bty = 'n',cex = cex.legend)
+legend(12,.93,legend=c("Correct trials","Error trials"),
+       title = NULL,lty=c(1,2),bty = "n",inset=0,
+       cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+
+dev.off()
+
+
+# Dynamic confidence plot according to group 2 --------------------------------------------------------
+m <- 'both'
+
+conf_alpha <- cast(subset(conf_group,manip=='alpha' & sub%in%sub_learn_best),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_alpha_count <- cast(subset(conf_group,manip=='alpha' & sub%in%sub_learn_best),phase_block~condition+cor,count_complete)
+conf_alpha_sd <- cast(subset(conf_group,manip=='alpha' & sub%in%sub_learn_best),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_alpha_sd[,2:5] <- conf_alpha_sd[,2:5]/sqrt(conf_alpha_count[,2:5])
+
+cj_pred <- with(subset(anal_sim,model==m & sub%in%sub_learn_best),aggregate(cj,by=list(trial,sub),mean))
+names(cj_pred) <- c("trial","sub","cj")
+cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
+
+conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
+
+conf_alpha_pred_count <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor, fun.aggregate = length)
+conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_alpha_pred_sd <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_alpha_pred_sd[,2:5] <- conf_alpha_pred_sd[,2:5]/sqrt(conf_alpha_pred_count[,2:5])
+
+cex_size <- function(size,cex.layout) {
+  return(size/(par()$ps*cex.layout))
+}
+### Adjust sizes and positions
+cex.layout <- 1
+# Text
+cex.legend <- cex_size(14,cex.layout)
+cex.axis <- cex_size(14,cex.layout) 
+cex.lab <- cex_size(18,cex.layout)
+line.width <- 1
+cex.pt <- .8
+
+
+jpeg("conf_alpha_bothlearn_learnsub.jpeg",width=13.5,height=10,units="cm",res=300)
+par(mar=c(3,3,0,0)+.1)
+plot(conf_alpha$minus_0,ylim=c(.7,.915),col = BLUE, type = 'l',main="",
+     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
+title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
+lines(conf_alpha$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
+lines(conf_alpha$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
+lines(conf_alpha$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
+points(conf_alpha$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_alpha$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_alpha$minus_1, pch = 16, cex = cex.pt, col = BLUE)
+points(conf_alpha$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+error.bar(1:length(conf_alpha$minus_0),conf_alpha$minus_0,conf_alpha_sd$minus_0,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_alpha$plus_0),conf_alpha$plus_0,conf_alpha_sd$plus_0,
+          lwd = line.width, col = VERMILLION)
+error.bar(1:length(conf_alpha$minus_1),conf_alpha$minus_1,conf_alpha_sd$minus_1,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_alpha$plus_1),conf_alpha$plus_1,conf_alpha_sd$plus_1,
+          lwd = line.width, col = VERMILLION)
+polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_0 + conf_alpha_pred_sd$minus_0,
+                           (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_1 + conf_alpha_pred_sd$minus_1,
+                           (conf_alpha_pred$minus_1 - conf_alpha_pred_sd$minus_1)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
+                           (conf_alpha_pred$plus_0 - conf_alpha_pred_sd$plus_0)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
+                           (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+legend(0.5,.93,legend = c('High feedback','Low feedback'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16), bty = 'n',cex = cex.legend)
+legend(12,.93,legend=c("Correct trials","Error trials"),
+       title = NULL,lty=c(1,2),bty = "n",inset=0,
+       cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+
+dev.off()
+
+
+# Reanalyze confidence according to group -----------------------------------------------------------
+if (stat_tests) {
+  Data$group <- "static"
+  Data[Data$sub %in% sub_learn_best,]$group <- "dynamic"
+  Data_beta$group <- "static"
+  Data_beta[Data_beta$sub %in% sub_learn_best,]$group <- "dynamic"
+  Data_alpha$group <- "static"
+  Data_alpha[Data_alpha$sub %in% sub_learn_best,]$group <- "dynamic"
+  
+  control <- lmerControl(optimizer = "bobyqa")
+  glmercontrol <- glmerControl(optimizer = "bobyqa")
+  
+  # Set contrast coding
+  options(contrasts=c("contr.sum","contr.poly"))
+  
+  
+  # Alpha
+  cj.cond.acc.interaction.alpha.0 <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                          data = Data_alpha, REML = F,control = control)
+  cj.cond.acc.interaction.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + condition:withinphasetrial:group + (cor + condition + condition:cor|sub),
+                                        data = Data_alpha, REML = F,control = control)
+  anova(cj.cond.acc.interaction.alpha.0,cj.cond.acc.interaction.alpha)
+  plot(resid(cj.cond.acc.interaction.alpha),Data_alpha$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.alpha) #Normality
+  anova(cj.cond.acc.interaction.alpha) #Results  
+  vif(cj.cond.acc.interaction.alpha)
+  # post-hoc
+  cj.static.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                          data = subset(Data_alpha,group=="static"), REML = F,control = control)
+  vif(cj.static.group)
+  anova(cj.static.group)
+  post_hoc <- emmeans(cj.static.group, ~ condition:withinphasetrial)
+  pairs(post_hoc)
+  post_hoc <- emmeans(cj.static.group, ~ condition:withinphasetrial | cor)
+  pairs(post_hoc)
+  cj.dynamic.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                           data = subset(Data_alpha,group=="dynamic"), REML = F,control = control)
+  vif(cj.dynamic.group)
+  anova(cj.dynamic.group)
+  post_hoc <- emmeans(cj.dynamic.group, ~ condition:withinphasetrial)
+  pairs(post_hoc)
+  post_hoc <- emmeans(cj.dynamic.group, ~ condition:withinphasetrial | cor)
+  pairs(post_hoc)
+  # Beta
+  cj.cond.acc.interaction.beta.0 <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                         data = Data_beta, REML = F,control = control)
+  cj.cond.acc.interaction.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + condition:withinphasetrial:group + (cor + condition + condition:cor|sub),
+                                       data = Data_beta, REML = F,control = control)
+  anova(cj.cond.acc.interaction.beta.0,cj.cond.acc.interaction.beta)
+  plot(resid(cj.cond.acc.interaction.beta),Data_beta$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.beta) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.beta) #Normality
+  anova(cj.cond.acc.interaction.beta) #Results  
+  vif(cj.cond.acc.interaction.beta)
+  # post-hoc
+  cj.static.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                          data = subset(Data_beta,group=="static"), REML = F,control = control)
+  anova(cj.static.group)
+  cj.dynamic.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                           data = subset(Data_beta,group=="dynamic"), REML = F,control = control)
+  anova(cj.dynamic.group)
+}
+
+
+# Questionnaire analysis --------------------------------------------------
+library("ordinal")
+questions$manip <- 'none'
+questions[questions$sub %in% Data_beta$sub,'manip'] <- 'beta'
+questions[questions$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
+table(questions$manip)
+questions$group <- "static"
+questions[questions$sub %in% sub_learn_best,]$group <- "dynamic"
+# Recode Likert responses to numeric
+questions[questions$questionResp=="['d']",]$questionResp <- 1
+questions[questions$questionResp=="['f']",]$questionResp <- 2
+questions[questions$questionResp=="['g']",]$questionResp <- 3
+questions[questions$questionResp=="['h']",]$questionResp <- 4
+questions[questions$questionResp=="['j']",]$questionResp <- 5
+questions$group <- as.factor(questions$group)
+questions$manip <- as.factor(questions$manip)
+
+# 1. 'Did you notice anything unusual in this experiment ? If so, please specify.'
+question1 <- subset(questions,questionID==1)
+
+# Translate Q1 responses to English
+# Install and load reticulate package
+library(deeplr)
+
+translated_text <- sapply(question1$questionResp, function(text) {
+  translate2(text = text, source_lang = "NL", target_lang = "EN", auth_key = "0b2b0a60-b371-44d8-ba91-f7902122f0e9:fx")
+})
+question1$translation <- translated_text
+
+# List of subjects that seem to have noticed the manipulation
+aware_sub <- c(
+  5, 7, 15, 16, 20, 21, 27, 28, 30, 34, 36, 37, 39, 41, 43, 45, 47, 49, 54, 56, 
+  57, 59, 60, 77, 87, 89, 92, 95, 96, 97, 99, 106, 108, 109, 111, 112, 118, 128)
+length(aware_sub)
+
+Data$aware <- 0
+Data[Data$sub %in% aware_sub,]$aware <- 1
+
+Data_beta$aware <- 0
+Data_beta[Data_beta$sub %in% aware_sub,]$aware <- 1
+
+Data_alpha$aware <- 0
+Data_alpha[Data_alpha$sub %in% aware_sub,]$aware <- 1
+
+length_unique <- function(x) length(unique(x))
+with(Data,aggregate(sub,by=list(aware,group),length_unique))
+with(Data_beta,aggregate(sub,by=list(aware,group),length_unique))
+with(Data_alpha,aggregate(sub,by=list(aware,group),length_unique))
+
+aware.test <- glmer(aware ~ group + (1|sub), data=Data_beta, family="binomial", control = glmercontrol)
+Anova(aware.test)
+
+# 2. 'Indicate to what extent the feedback you received at the beginning of each task 
+# helped you assess how well you performed.'
+# Not at all     Slightly     Moderately     Very     Extremely
+# D              F            G              H       J
+question2 <- subset(questions,questionID==2)
+question2$questionResp <- as.numeric(question2$questionResp)
+with(question2,aggregate(questionResp,by=list(group,manip),table))
+# Test difference in response between groups
+question2$questionResp <- as.ordered(question2$questionResp)
+
+ordinal.reg <- clm(data=question2,questionResp~group*manip)
+summary(ordinal.reg)
+
+
+# 3. 'Indicate to what extent you feel that the feedback you received closely 
+# tracked your actual performance.'
+question3 <- subset(questions,questionID==3)
+question3$questionResp <- as.numeric(question3$questionResp)
+with(question3,aggregate(questionResp,by=list(group,manip),table))
+# Test difference in response between groups
+question3$questionResp <- as.ordered(question3$questionResp)
+ordinal.reg <- clm(data=question3,questionResp~group*manip)
+summary(ordinal.reg)
+ordinal.reg.beta <- clm(data=subset(question3,sub %in% Data_beta$sub),questionResp~group)
+summary(ordinal.reg.beta)
+ordinal.reg.alpha <- clm(data=subset(question3,sub %in% Data_alpha$sub),questionResp~group)
+summary(ordinal.reg.alpha)
+
+# Check participants understood the feedback
+question4 <- subset(questions,questionID==5)
+
+correct_response <- (grepl('3',question4$questionResp) | grepl('5',question4$questionResp)) & 
+  !(grepl('1',question4$questionResp) | grepl('2',question4$questionResp) | grepl('6',question4$questionResp))
+table(correct_response)
+
+question4$fb_understood <- ifelse(correct_response,1,0)
+
+fb_understood_sub <- subset(question4,fb_understood==1)$sub
+
+Data$fb_understood <- 0
+Data[Data$sub %in% fb_understood_sub,]$fb_understood <- 1
+
+Data_beta$fb_understood <- 0
+Data_beta[Data_beta$sub %in% fb_understood_sub,]$fb_understood <- 1
+
+Data_alpha$fb_understood <- 0
+Data_alpha[Data_alpha$sub %in% fb_understood_sub,]$fb_understood <- 1
+
+with(Data_beta,aggregate(sub,by=list(fb_understood,group),length_unique))
+with(Data_alpha,aggregate(sub,by=list(fb_understood,group),length_unique))
+
+fb_understood.test <- glmer(fb_understood ~ group + (1|sub), data=Data, family="binomial", control = glmercontrol)
+Anova(fb_understood.test)
+
+fb_understood.test.beta <- glmer(fb_understood ~ group + (1|sub), data=Data_beta, family="binomial", control = glmercontrol)
+Anova(fb_understood.test.beta)
+
+fb_understood.test.alpha <- glmer(fb_understood ~ group + (1|sub), data=Data_alpha, family="binomial", control = glmercontrol)
+Anova(fb_understood.test.alpha)
+
+# Plot parameters per group -----------------------------------------------
+
+
+par_beta <- subset(par,manip=='beta')
+par_beta$group <- "static"
+par_beta[par_beta$sub %in% sub_learn_best,]$group <- "dynamic"
+
+with(par_beta,aggregate(eta_a,by=list(group=group,model=model),mean))
+with(par_beta,aggregate(eta_b,by=list(group=group,model=model),mean))
+with(par_beta,aggregate(a0,by=list(group=group,model=model),mean))
+with(par_beta,aggregate(b0,by=list(group=group,model=model),mean))
+
+par_alpha <- subset(par,manip=='alpha')
+par_alpha$group <- "static"
+par_alpha[par_alpha$sub %in% sub_learn_best,]$group <- "dynamic"
+
+with(par_alpha,aggregate(eta_a,by=list(group=group,model=model),mean))
+with(par_alpha,aggregate(eta_b,by=list(group=group,model=model),mean))
+with(par_alpha,aggregate(a0,by=list(group=group,model=model),mean))
+with(par_alpha,aggregate(b0,by=list(group=group,model=model),mean))
+
+# Plot learning rates (eta_a and eta_b) separately for each group
+par_beta$group <- factor(par_beta$group,levels=c("static","dynamic"))
+par_alpha$group <- factor(par_alpha$group,levels=c("static","dynamic"))
+
+
+ggplot(subset(par_beta,model=='both'), aes(x=eta_a, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+ggplot(subset(par_beta,model=='both'), aes(x=eta_b, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+ggplot(subset(par_alpha,model=='both'), aes(x=eta_a, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+ggplot(subset(par_alpha,model=='both'), aes(x=eta_b, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+
+# Learning rates
+ggplot(subset(par_alpha,model=='both'), aes(x=eta_a, y=eta_b, color=group)) + 
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Alpha experiment")
+
+ggplot(subset(par_beta,model=='both'), aes(x=eta_a, y=eta_b, color=group)) +
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Beta experiment")
+
+# Initial values
+ggplot(subset(par_alpha,model=='both'), aes(x=a0, y=b0, color=group)) + 
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Alpha experiment")
+
+ggplot(subset(par_beta,model=='both'), aes(x=a0, y=b0, color=group)) +
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Beta experiment")
+
 # Not in paper -------------------------------------------------------------------
-# Testing wild mixed model ------------------------------------------------
-
-m.int <- lmer(data = Data, cj ~ condition*cor*difflevel*group*manip + (1|sub), REML = F)
-m.cond <- lmer(data = Data, cj ~ condition*cor*difflevel*group*manip + (condition|sub), REML = F)
-anova(m.int,m.cond)
-m.cond.cor <- lmer(data = Data, cj ~ condition*cor*difflevel*group*manip + (condition + cor|sub), REML = F)
-anova(m.cond,m.cond.cor)
-# m.cond.cor.diff <- lmer(data = Data, cj ~ condition*cor*difflevel*group*manip + 
-#                           (condition + cor + difflevel|sub), REML = F) # Singular
-anova(m.cond.cor)
-emm <- emmeans(m.cond.cor, ~ condition | group)
-pairs(emm)
-emm <- emmeans(m.cond.cor, ~ condition | manip)
-pairs(emm)
-emm <- emmeans(m.cond.cor, ~ condition | cor | manip*group)
-pairs(emm)
-
-conf_group <- with(Data,aggregate(cj,by=list(group,manip,condition),mean))
-conf_group_sd <- with(Data,aggregate(cj,by=list(group,manip,condition),sd))
-conf_group_length <- with(Data,aggregate(cj,by=list(group,manip,condition),length))
-names(conf_group) <- c('group','manip','condition','cj')
-names(conf_group_sd) <- c('group','manip','condition','cj')
-names(conf_group_length) <- c('group','manip','condition','Nsub')
-conf_group_length$Nsub <- conf_group_length$Nsub/Ntrials*2
-conf_group_sd$cj <- conf_group_sd$cj/sqrt(conf_group_length$Nsub)
-
-conf_alpha <- as.matrix(cast(subset(conf_group,manip=='alpha'),condition~group))
-conf_beta <- as.matrix(cast(subset(conf_group,manip=='beta'),condition~group))
-par(mfrow=c(1,2))
-barplot(conf_alpha, main='Alpha experiment',ylim=c(0,1),
-        col=colors()[c(23,89)] , 
-        border="white", 
-        font.axis=2, 
-        beside=T, 
-        legend=rownames(conf_alpha),
-        args.legend = list(x='top',bty='n',horiz=T),
-        xlab="group", 
-        font.lab=2)
-barplot(conf_beta, main='Beta experiment',ylim=c(0,1),
-        col=colors()[c(23,89)] , 
-        border="white", 
-        font.axis=2, 
-        beside=T, 
-        # legend=rownames(conf_beta),
-        xlab="group", 
-        font.lab=2)
-par(mfrow=c(1,1))
-
-
 # Plot traces trim skip ---------------------------------------------------
 
 width <- 16 # Plot size expressed in cm

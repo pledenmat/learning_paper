@@ -128,20 +128,9 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     if (mean_ev) {
       obs_nn$evidence <- obs_nn$evidence + (as.numeric(obs_nn$cor)-.5)*2 * obs_nn$drift * obs_nn[,confRTname] # Add evidence if correct, deduce if error
     } else {
-      for (trial in seq(1,dim(obs_nn)[1],Nupdate_per_trial)) {
-        #' Post decision drift rate sign depends on accuracy 
-        if (obs_nn[trial,accname] %in% c(1,'correct','cor')) {
-          obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
-            obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
-            DDM_fixed_time(v = drift[difficulty==obs_nn[trial,diffname]],
-                           time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
-        }else if (obs_nn[trial,accname] %in% c(-1,0,'error','err')) {
-          obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] <- 
-            obs_nn[trial:(trial+Nupdate_per_trial-1),'evidence'] + 
-            DDM_fixed_time(v = - drift[difficulty==obs_nn[trial,diffname]],
-                           time=obs_nn[trial,confRTname],ntrials=Nupdate_per_trial,s=sigma,dt=dt)[,1]
-        }
-      }
+      # Add post-decisional evidence: EVpost ~ N(drift*RT, sigma²*RT)
+      # Post decision drift rate sign depends on accuracy
+      obs_nn$evidence <- obs_nn$evidence + obs_nn[,accname] * obs_nn$drift * obs_nn[,confRTname] + rnorm(nrow(obs_nn))*sigma*sqrt(obs_nn[,confRTname]) 
       
     }
     if (returnFit) {

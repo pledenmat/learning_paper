@@ -31,11 +31,11 @@ ddm_par <- data.frame(bound = NA, drift = NA, ter = NA,cost_ddm = NA,
                       difflevel = rep(difflevels, length.out = totlen))
 
 par_no_learn <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                            sub = rep(subs, each = length(conditions)*length(difflevels)),
-                            condition = rep(conditions,each = length(difflevels),
-                                            length.out=totlen),
-                            difflevel = rep(difflevels, length.out = totlen),
-                            manip=NA)
+                           sub = rep(subs, each = length(conditions)*length(difflevels)),
+                           condition = rep(conditions,each = length(difflevels),
+                                           length.out=totlen),
+                           difflevel = rep(difflevels, length.out = totlen),
+                           manip=NA)
 
 par_beta_learn <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                              sub = rep(subs, each = length(conditions)*length(difflevels)),
@@ -121,7 +121,7 @@ for (s in 1:length(subs)) {
     par_both_learn[par_both_learn$sub==subs[s],"eta_b"] <- ldc.results$optim$bestmem[5]
     par_both_learn[par_both_learn$sub==subs[s],"cost_ldc"] <- ldc.results$optim$bestval
   }
-
+  
   par_no_learn[par_no_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_both_learn[par_both_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
   par_beta_learn[par_beta_learn$sub==subs[s],"manip"] <- unique(temp_dat$manip)
@@ -170,14 +170,14 @@ for (s in 1:Nsub) {
     predictions$manip <- unique(temp_dat$manip)
     predictions$switch <- 1:nrow(predictions) %% 6
     predictions$trial <- -99 # Actual trial numbers are given at the subject level below
-    if (unique(temp_dat$group)=='plus_first') {
+    if (unique(temp_dat$order)=='plus_first') {
       predictions$condition <- "minus"
       predictions[predictions$switch %in% c(0,2,4),"condition"] <- "plus"
-    } else if (unique(temp_dat$group)=='minus_first') {
+    } else if (unique(temp_dat$order)=='minus_first') {
       predictions$condition <- "plus"
       predictions[predictions$switch %in% c(0,2,4),"condition"] <- "minus"
     } else {
-      print(paste("No group detected for subject",subs[s]))
+      print(paste("No order column detected for subject",subs[s]))
     }
     if(level==difflevels[1]&s==1){ simDat <- predictions
     }else{
@@ -260,7 +260,7 @@ for (s in 1:Nsub) {
                  obs=temp_dat,returnFit = F,eta_sep=T,estimate_evidence = F,
                  Nupdate_per_trial=Nupdate_per_trial, binning = binning,
                  dt = dt, sigma = sigma,targetname = 'fb',fitname = 'cj')
-
+  
   simDat_alpha[simDat_alpha$sub==subs[s],'cj'] <- results_alpha_learn$pred
   simDat_both[simDat_both$sub==subs[s],'cj'] <- results_both_learn$pred
   simDat_no[simDat_no$sub==subs[s],'cj'] <- results_no_learn$pred
@@ -281,9 +281,9 @@ simDat_both$RTconf <- simDat_both$rt2 - simDat_both$rt
 models <- c("no","alpha","beta","both")
 
 fit_par <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
-                  sub = rep(subs,each=length(models)^2), manip=NA, gen_model = rep(models,length(models)),
-                  fit_model = rep(models,each = length(models)),Npar = NA,
-                  Ndata_point = round(nrow(Data)/Nsub))
+                      sub = rep(subs,each=length(models)^2), manip=NA, gen_model = rep(models,length(models)),
+                      fit_model = rep(models,each = length(models)),Npar = NA,
+                      Ndata_point = round(nrow(Data)/Nsub))
 fit_par$Npar <- 3
 fit_par[fit_par$fit_model=="no",'Npar'] <- 2
 fit_par[fit_par$fit_model=="both",'Npar'] <- 4
