@@ -136,7 +136,7 @@ table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
 #' more than 85% of the time
 conf_count <- with(Data,aggregate(cj,by=list(sub=sub),max_count))
 conf_count$x <- conf_count$x/Ntrials
-exclusion <- c(exclusion, unique(conf_count[conf_count$x>.85,"sub"]))
+exclusion <- c(exclusion, unique(conf_count[conf_count$x>.9,"sub"]))
 
 table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
 
@@ -187,7 +187,7 @@ Data_beta <- subset(Data,manip=='beta')
 # Behavior analysis - Dynamics -----------------------------------------------------------
 if (stat_tests) {
   control <- lmerControl(optimizer = "bobyqa")
-  glmercontrol <- glmerControl(optimizer = "bobyqa")
+  glmercontrol <- glmerControl(optimizer = "bobyqa",optCtrl = list(maxfun=1e6))
   
   # Set contrast coding
   options(contrasts=c("contr.sum","contr.poly"))
@@ -236,6 +236,12 @@ if (stat_tests) {
   leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
   qqmath(cj.cond.acc.interaction.alpha) #Normality
   anova(cj.cond.acc.interaction.alpha) #Results
+  cj.cond.interaction.alpha.cor <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
+                                        data = subset(Data_alpha,cor==1), REML = F,control = control)
+  anova(cj.cond.interaction.alpha.cor)
+  cj.cond.interaction.alpha.err <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
+                                        data = subset(Data_alpha,cor==0), REML = F,control = control)
+  anova(cj.cond.interaction.alpha.err)
   
   # Beta
   cj.int.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F, ,control = control); 
@@ -308,7 +314,15 @@ if (stat_tests) {
   plot(resid(cj.cond.acc.interaction.alpha.static),Data_alpha$cj) #Linearity
   leveneTest(residuals(cj.cond.acc.interaction.alpha.static) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
   qqmath(cj.cond.acc.interaction.alpha.static) #Normality
+  vif(cj.cond.acc.interaction.alpha.static) # Multicollinearity
   anova(cj.cond.acc.interaction.alpha.static) #Results
+  
+  cj.cond.static.correct <- lmer(cj ~ condition*difflevel + (condition|sub),
+                                               data = subset(Data_alpha,cor==1), REML = F,control = control)
+  anova(cj.cond.static.correct)
+  cj.cond.static.error <- lmer(cj ~ condition*difflevel + (condition|sub),
+                                               data = subset(Data_alpha,cor==0), REML = F,control = control)
+  anova(cj.cond.static.error)
   
   # Beta
   cj.int.beta.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_beta,REML = F, ,control = control); 
