@@ -187,25 +187,25 @@ Data_beta <- subset(Data,manip=='beta')
 # Behavior analysis - Dynamics -----------------------------------------------------------
 if (stat_tests) {
   control <- lmerControl(optimizer = "bobyqa")
-  glmercontrol <- glmerControl(optimizer = "bobyqa",optCtrl = list(maxfun=1e6))
+  glmercontrol <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 3e5))
   
   # Set contrast coding
   options(contrasts=c("contr.sum","contr.poly"))
   
   ## Replication of previous experiments (static effects)
   # RT
-  rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F,control = control)
-  rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,REML = F,control = control)
+  rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.int.alpha,rt.cond.alpha)
   # Singular fit
-  rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_alpha,REML = F,control = control)
+  rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.cond.alpha)
   
-  rt.int.beta <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F,control = control)
-  rt.cond.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = Data_beta,REML = F,control = control)
+  rt.int.beta <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  rt.cond.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.int.beta,rt.cond.beta)
   # Singular fit
-  rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_beta,REML = F,control = control)
+  rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.cond.beta)
   
   # Accuracy
@@ -258,35 +258,29 @@ if (stat_tests) {
   plot(resid(cj.cond.acc.interaction.beta),Data_beta$cj) #Linearity
   leveneTest(residuals(cj.cond.acc.interaction.beta) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
   qqmath(cj.cond.acc.interaction.beta) #Normality
+  vif(cj.cond.acc.interaction.beta) # Multicollinearity
   anova(cj.cond.acc.interaction.beta) #Results  
-  vif(cj.cond.acc.interaction.beta)
 }
 
 
 # Behavior analysis - Static ----------------------------------------------
 if (stat_tests) {
-  control <- lmerControl(optimizer = "bobyqa")
-  glmercontrol <- glmerControl(optimizer = "bobyqa")
-  
-  # Set contrast coding
-  options(contrasts=c("contr.sum","contr.poly"))
-  
   ## Replication of previous experiments (static effects)
   # RT
-  rt.int.alpha.static <- lmer(rt~condition*difflevel + (1|sub),data = Data_alpha,REML = F,control = control)
-  rt.cond.alpha.static <- lmer(rt~condition*difflevel + (condition|sub),data = Data_alpha,REML = F,control = control)
+  rt.int.alpha.static <- lmer(rt~condition*difflevel + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  rt.cond.alpha.static <- lmer(rt~condition*difflevel + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.int.alpha.static,rt.cond.alpha.static)
   # Singular fit
-  rt.cond.diff.alpha.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = Data_alpha,REML = F,control = control)
+  rt.cond.diff.alpha.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.cond.alpha.static)
   
-  rt.int.beta.static <- lmer(rt~condition*difflevel + (1|sub),data = Data_beta,REML = F,control = control)
-  rt.cond.beta.static <- lmer(rt~condition*difflevel + (condition|sub),data = Data_beta,REML = F,control = control)
+  rt.int.beta.static <- lmer(rt~condition*difflevel + (1|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  rt.cond.beta.static <- lmer(rt~condition*difflevel + (condition|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.int.beta.static,rt.cond.beta.static)
   # Singular fit
-  rt.cond.diff.beta.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = Data_beta,REML = F,control = control)
+  rt.cond.diff.beta.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.cond.beta.static)
-
+  
   # Accuracy
   acc.int.alpha.static <- glmer(cor~condition*difflevel + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
   acc.cond.alpha.static <- glmer(cor~condition*difflevel + (condition|sub),data = Data_alpha,family = binomial, control = glmercontrol)
@@ -318,10 +312,10 @@ if (stat_tests) {
   anova(cj.cond.acc.interaction.alpha.static) #Results
   
   cj.cond.static.correct <- lmer(cj ~ condition*difflevel + (condition|sub),
-                                               data = subset(Data_alpha,cor==1), REML = F,control = control)
+                                 data = subset(Data_alpha,cor==1), REML = F,control = control)
   anova(cj.cond.static.correct)
   cj.cond.static.error <- lmer(cj ~ condition*difflevel + (condition|sub),
-                                               data = subset(Data_alpha,cor==0), REML = F,control = control)
+                               data = subset(Data_alpha,cor==0), REML = F,control = control)
   anova(cj.cond.static.error)
   
   # Beta
@@ -944,7 +938,7 @@ for (s in 1:Nsub) {
 
 # Analysis of model prediction --------------------------------------------
 if (stat_tests) {
-
+  
   
 }
 
@@ -1460,7 +1454,7 @@ for (m in models) {
             lwd=2, col = BLUE)
   error.bar(1:xlen,alpha_alpha_pred$plus,alpha_alpha_pred_sd$plus,
             lwd=2, col = VERMILLION)
-
+  
   plot(beta_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
        lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
        xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
@@ -1470,7 +1464,7 @@ for (m in models) {
             lwd=2, col = BLUE)
   error.bar(1:xlen,beta_alpha_pred$plus,beta_alpha_pred_sd$plus,
             lwd=2, col = VERMILLION)
-
+  
   dev.off()
   
   tiff(paste0('trace_aggreg_beta_',m,'_learn.tiff'), width = 36, height = 36, units = 'cm', res = 300)
@@ -1526,7 +1520,7 @@ for (m in models) {
             lwd=2, col = BLUE)
   error.bar(1:xlen,beta_beta_pred$plus,beta_beta_pred_sd$plus,
             lwd=2, col = VERMILLION)
-
+  
   dev.off()
 }
 
