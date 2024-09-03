@@ -2164,3 +2164,420 @@ if (stat_tests) {
   qqmath(m.cond.acc.x) #Normality
   anova(m.cond.acc.x) #Results
 }
+
+
+# Plot Feedback presented ------------------------------------------------
+width <- 16 # Plot size expressed in cm
+height <- 10
+
+se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
+
+title_line <- -2
+cex.title <- 3
+cex.lab <- 3
+cex.lab.rel <- 3*.83
+cex.axis <- 2
+cex.legend <- 2
+cex.datdot <- 2
+lwd.dat <- 2
+if (max(Data_alpha$fb)<=1) {
+  Data_alpha$fb <- Data_alpha$fb*100
+  Data_beta$fb <- Data_beta$fb*100
+}
+if (plots) {
+  go_to("plots")
+  go_to("paper")
+  ###
+  # Experiment A
+  ###
+  N_temp <- length(unique(Data_alpha$sub))
+  
+  fbminus <- with(subset(Data_alpha,condition=="minus"),aggregate(fb,by=list(sub,difflevel,cor),mean));
+  names(fbminus) <- c('sub','difflevel','cor','fb')
+  fbminus_cor <- subset(fbminus,cor==1); fbminus_err <- subset(fbminus,cor==0)
+  fbminus_cor <- cast(fbminus_cor,sub~difflevel); fbminus_err <- cast(fbminus_err,sub~difflevel)
+  
+  fbplus <- with(subset(Data_alpha,condition=="plus"),aggregate(fb,by=list(sub,difflevel,cor),mean));
+  names(fbplus) <- c('sub','difflevel','cor','fb')
+  fbplus_cor <- subset(fbplus,cor==1); fbplus_err <- subset(fbplus,cor==0)
+  fbplus_cor <- cast(fbplus_cor,sub~difflevel); fbplus_err <- cast(fbplus_err,sub~difflevel)
+  
+  
+  # Drop subject column
+  xminus_cor <- fbminus_cor[,c(2:4)];xplus_cor <- fbplus_cor[,c(2:4)]
+  xminus_err <- fbminus_err[,c(2:4)];xplus_err <- fbplus_err[,c(2:4)]
+  n <- length(xminus_err)
+  
+  xminus_cor <- xminus_cor[,c("hard","medium","easy")];
+  xplus_cor <- xplus_cor[,c("hard","medium","easy")]
+  xminus_err <- xminus_err[,c("hard","medium","easy")];
+  xplus_err <- xplus_err[,c("hard","medium","easy")]
+  
+  jpeg(filename = "feedback_presented.jpg",height = 16,width = 32,units = 'cm', res = 600)
+  par(mfrow=c(1,2))
+  stripchart(xminus_cor,ylim=c(0,100), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "")
+  title(ylab = "Feedback", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(xminus_cor), cex.axis=cex.axis);
+  axis(2, seq(0,100,20), cex.axis=cex.axis)
+  means <- sapply(xminus_cor, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty = "dashed")
+  error.bar(0:(n-1),means,colSds(as.matrix(xminus_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  means <- sapply(xplus_cor, mean,na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty = "dashed")
+  error.bar(0:(n-1),means,colSds(as.matrix(xplus_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  means <- sapply(xminus_err, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty = "dotted")
+  error.bar(0:(n-1),means,colSds(as.matrix(xminus_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  means <- sapply(xplus_err, mean,na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty = "dotted")
+  error.bar(0:(n-1),means,colSds(as.matrix(xplus_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  legend("bottomleft",legend=c("Correct trials","Error trials"),
+         title = NULL,lty=c("dashed","dotted"),bty = "n",inset=0,
+         cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+  legend("bottomright",legend=c("Minus","Plus"),
+         title = NULL,pch=rep(16,3),bty = "n",inset=0,
+         cex = cex.legend,col=c(BLUE,VERMILLION))
+  
+  ###
+  # Experiment B
+  ###
+  N_temp <- length(unique(Data_beta$sub))
+  
+  fbminus <- with(subset(Data_beta,condition=="minus"),aggregate(fb,by=list(sub,difflevel,cor),mean));
+  names(fbminus) <- c('sub','difflevel','cor','fb')
+  fbminus_cor <- subset(fbminus,cor==1); fbminus_err <- subset(fbminus,cor==0)
+  fbminus_cor <- cast(fbminus_cor,sub~difflevel); fbminus_err <- cast(fbminus_err,sub~difflevel)
+  
+  fbplus <- with(subset(Data_beta,condition=="plus"),aggregate(fb,by=list(sub,difflevel,cor),mean));
+  names(fbplus) <- c('sub','difflevel','cor','fb')
+  fbplus_cor <- subset(fbplus,cor==1); fbplus_err <- subset(fbplus,cor==0)
+  fbplus_cor <- cast(fbplus_cor,sub~difflevel); fbplus_err <- cast(fbplus_err,sub~difflevel)
+  
+  
+  # Drop subject column
+  xminus_cor <- fbminus_cor[,c(2:4)];xplus_cor <- fbplus_cor[,c(2:4)]
+  xminus_err <- fbminus_err[,c(2:4)];xplus_err <- fbplus_err[,c(2:4)]
+  n <- length(xminus_err)
+  
+  xminus_cor <- xminus_cor[,c("hard","medium","easy")];
+  xplus_cor <- xplus_cor[,c("hard","medium","easy")]
+  xminus_err <- xminus_err[,c("hard","medium","easy")];
+  xplus_err <- xplus_err[,c("hard","medium","easy")]
+  
+  stripchart(xminus_cor,ylim=c(0,100), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "")
+  title(ylab = "Feedback", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(xminus_cor), cex.axis=cex.axis);
+  axis(2, seq(0,100,20), cex.axis=cex.axis)
+  means <- sapply(xminus_cor, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty = "dashed")
+  error.bar(0:(n-1),means,colSds(as.matrix(xminus_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  means <- sapply(xplus_cor, mean,na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty = "dashed")
+  error.bar(0:(n-1),means,colSds(as.matrix(xplus_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  means <- sapply(xminus_err, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty = "dotted")
+  error.bar(0:(n-1),means,colSds(as.matrix(xminus_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  means <- sapply(xplus_err, mean,na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty = "dotted")
+  error.bar(0:(n-1),means,colSds(as.matrix(xplus_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  legend("bottomleft",legend=c("Correct trials","Error trials"),
+         title = NULL,lty=c("dashed","dotted"),bty = "n",inset=0,
+         cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+  dev.off()
+  par(mfrow=c(1,1))
+}
+# Plot Accuracy and RT ----------------------------------------------------
+if (plots) {
+  if (is.factor(Data_alpha$cor)) {
+    Data_alpha$cor <- as.numeric(Data_alpha$cor)-1
+    Data_beta$cor <- as.numeric(Data_beta$cor)-1
+  }
+  go_to("plots")
+  go_to("paper")
+  ###
+  # Experiment A
+  ###
+  N_temp <- length(unique(Data_alpha$sub))
+  
+  rtlow <- with(subset(Data_alpha,condition=="minus"),aggregate(rt,by=list(sub,difflevel),mean));
+  names(rtlow) <- c('sub','difflevel','rt')
+  rtlow <- cast(rtlow,sub~difflevel)
+  
+  rthigh <- with(subset(Data_alpha,condition=="plus"),aggregate(rt,by=list(sub,difflevel),mean));
+  names(rthigh) <- c('sub','difflevel','rt')
+  rthigh <- cast(rthigh,sub~difflevel)
+  
+  # Drop subject column
+  rtlow <- rtlow[,c(2:4)]
+  rthigh <- rthigh[,c(2:4)]
+  n <- length(rtlow)
+  
+  rtlow <- rtlow[,c("hard","medium","easy")];
+  rthigh <- rthigh[,c("hard","medium","easy")]
+  
+  corlow <- with(subset(Data_alpha,condition=="minus"),aggregate(cor,by=list(sub,difflevel),mean));
+  names(corlow) <- c('sub','difflevel','cor')
+  corlow <- cast(corlow,sub~difflevel)
+  
+  corhigh <- with(subset(Data_alpha,condition=="plus"),aggregate(cor,by=list(sub,difflevel),mean));
+  names(corhigh) <- c('sub','difflevel','cor')
+  corhigh <- cast(corhigh,sub~difflevel)
+  
+  # Drop subject column
+  corlow <- corlow[,c(2:4)]
+  corhigh <- corhigh[,c(2:4)]
+  n <- length(corlow)
+  
+  corlow <- corlow[,c("hard","medium","easy")];
+  corhigh <- corhigh[,c("hard","medium","easy")]
+  
+  jpeg(filename = "objective_performance.jpg",height = 32,width = 32,units = 'cm', res = 600)
+  layout(matrix(c(1,2,3,4),ncol=2,byrow = F))
+  stripchart(rtlow,ylim=c(0.8,1.1), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "", main = "Alpha-manipulated feedback", cex.main = cex.title)
+  title(ylab = "Reaction time (s)", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(rtlow), cex.axis=cex.axis);
+  axis(2, seq(0.8,1.1,.1), cex.axis=cex.axis)
+  means <- sapply(rtlow, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(rtlow),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  
+  means <- sapply(rthigh, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(rthigh),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  legend("top",legend=c("low","high"),horiz = T,
+         title = NULL,pch=rep(16,3),bty = "n",inset=0,
+         cex = cex.legend,col=c(BLUE,VERMILLION))
+  
+  stripchart(corlow,ylim=c(0.5,1), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "")
+  title(ylab = "Accuracy", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(corlow), cex.axis=cex.axis);
+  axis(2, seq(0.5,1,.1), cex.axis=cex.axis)
+  means <- sapply(corlow, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(corlow),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  
+  means <- sapply(corhigh, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(corhigh),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  # legend("bottomright",legend=c("low","high"),
+  #        title = NULL,pch=rep(16,3),bty = "n",inset=0,
+  #        cex = cex.legend,col=c(BLUE,VERMILLION))
+  
+  ###
+  # Experiment B
+  ###
+  N_temp <- length(unique(Data_beta$sub))
+  
+  rtlow <- with(subset(Data_beta,condition=="minus"),aggregate(rt,by=list(sub,difflevel),mean));
+  names(rtlow) <- c('sub','difflevel','rt')
+  rtlow <- cast(rtlow,sub~difflevel)
+  
+  rthigh <- with(subset(Data_beta,condition=="plus"),aggregate(rt,by=list(sub,difflevel),mean));
+  names(rthigh) <- c('sub','difflevel','rt')
+  rthigh <- cast(rthigh,sub~difflevel)
+  
+  
+  # Drop subject column
+  rtlow <- rtlow[,c(2:4)]
+  rthigh <- rthigh[,c(2:4)]
+  n <- length(rthigh)
+  
+  rtlow <- rtlow[,c("hard","medium","easy")];
+  rthigh <- rthigh[,c("hard","medium","easy")];
+  
+  corlow <- with(subset(Data_beta,condition=="minus"),aggregate(cor,by=list(sub,difflevel),mean));
+  names(corlow) <- c('sub','difflevel','cor')
+  corlow <- cast(corlow,sub~difflevel)
+  
+  corhigh <- with(subset(Data_beta,condition=="plus"),aggregate(cor,by=list(sub,difflevel),mean));
+  names(corhigh) <- c('sub','difflevel','cor')
+  corhigh <- cast(corhigh,sub~difflevel)
+  
+  # Drop subject column
+  corlow <- corlow[,c(2:4)]
+  corhigh <- corhigh[,c(2:4)]
+  n <- length(corlow)
+  
+  corlow <- corlow[,c("hard","medium","easy")];
+  corhigh <- corhigh[,c("hard","medium","easy")]
+  
+  stripchart(rtlow,ylim=c(0.8,1.1), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "",  main = "Beta-manipulated feedback", cex.main = cex.title)
+  title(ylab = "Reaction time (s)", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(rtlow), cex.axis=cex.axis);
+  axis(2, seq(0.8,1.1,.1), cex.axis=cex.axis)
+  means <- sapply(rtlow, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(rtlow),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  
+  means <- sapply(rthigh, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(rthigh),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  legend("top",legend=c("low","high"),horiz=T,
+         title = NULL,pch=rep(16,3),bty = "n",inset=0,
+         cex = cex.legend,col=c(BLUE,VERMILLION))
+  
+  stripchart(corlow,ylim=c(0.5,1), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "")
+  title(ylab = "Accuracy", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(corlow), cex.axis=cex.axis);
+  axis(2, seq(0.5,1,.1), cex.axis=cex.axis)
+  means <- sapply(corlow, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(corlow),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE)
+  
+  means <- sapply(corhigh, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat)
+  error.bar(0:(n-1),means,colSds(as.matrix(corhigh),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION)
+  
+  dev.off()
+  par(mfrow=c(1,1))
+}
+
+
+
+
+# Plot static confidence - WIP --------------------------------------------
+
+if (plots) {
+  if (is.factor(Data_alpha$cor)) {
+    Data_alpha$cor <- as.numeric(Data_alpha$cor)-1
+    Data_beta$cor <- as.numeric(Data_beta$cor)-1
+  }
+  go_to("plots")
+  go_to("paper")
+  ###
+  # Experiment A
+  ###
+  N_temp <- length(unique(Data_alpha$sub))
+  
+  cjlow <- with(subset(Data_alpha,condition=="minus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+  names(cjlow) <- c('sub','difflevel','cor','rt')
+  cjlow_err <- subset(cjlow,cor==0)
+  cjlow_cor <- subset(cjlow,cor==1)
+  cjlow_err <- cast(cjlow_err,sub~difflevel)
+  cjlow_cor <- cast(cjlow_cor,sub~difflevel)
+  
+  cjhigh <- with(subset(Data_alpha,condition=="plus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+  names(cjhigh) <- c('sub','difflevel','cor','rt')
+  cjhigh_err <- subset(cjhigh,cor==0)
+  cjhigh_cor <- subset(cjhigh,cor==1)
+  cjhigh_err <- cast(cjhigh_err,sub~difflevel)
+  cjhigh_cor <- cast(cjhigh_cor,sub~difflevel)
+  
+  # Drop subject column
+  cjlow_err <- cjlow_err[,c(2:4)]
+  cjlow_cor <- cjlow_cor[,c(2:4)]
+  cjhigh_err <- cjhigh_err[,c(2:4)]
+  cjhigh_cor <- cjhigh_cor[,c(2:4)]
+  n <- length(cjlow_err)
+  
+  cjlow_err <- cjlow_err[,c("hard","medium","easy")];
+  cjlow_cor <- cjlow_cor[,c("hard","medium","easy")]
+  cjhigh_err <- cjhigh_err[,c("hard","medium","easy")]
+  cjhigh_cor <- cjhigh_cor[,c("hard","medium","easy")]
+  
+  
+  jpeg(filename = "static_confidence.jpg",height = 16,width = 32,units = 'cm', res = 600)
+  par(mfrow=c(1,2))
+  stripchart(cjlow_err,ylim=c(.6,1), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "", main = "Alpha-manipulated feedback", cex.main = cex.title)
+  title(ylab = "Confidence", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(cjlow_err), cex.axis=cex.axis);
+  axis(2, seq(.6,1,.5), cex.axis=cex.axis)
+  means <- sapply(cjlow_err, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty='dotted')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjlow_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE,lty='dotted')
+  
+  means <- sapply(cjhigh_err, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty='dotted')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjhigh_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION,lty='dotted')
+  
+  means <- sapply(cjlow_cor, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty='dashed')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjlow_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE,lty='dashed')
+  
+  means <- sapply(cjhigh_cor, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty='dashed')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjhigh_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION,lty='dashed')
+  
+  legend("top",legend=c("low","high"),horiz = T,
+         title = NULL,pch=rep(16,3),bty = "n",inset=0,
+         cex = cex.legend,col=c(BLUE,VERMILLION))
+  legend("bottomleft",legend=c("Correct trials","Error trials"),
+         title = NULL,lty=c("dashed","dotted"),bty = "n",inset=0,
+         cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+  
+  ###
+  # Experiment B
+  ###
+  N_temp <- length(unique(Data_beta$sub))
+  
+  cjlow <- with(subset(Data_beta,condition=="minus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+  names(cjlow) <- c('sub','difflevel','cor','rt')
+  cjlow_err <- subset(cjlow,cor==0)
+  cjlow_cor <- subset(cjlow,cor==1)
+  cjlow_err <- cast(cjlow_err,sub~difflevel)
+  cjlow_cor <- cast(cjlow_cor,sub~difflevel)
+  
+  cjhigh <- with(subset(Data_beta,condition=="plus"),aggregate(cj,by=list(sub,difflevel,cor),mean));
+  names(cjhigh) <- c('sub','difflevel','cor','rt')
+  cjhigh_err <- subset(cjhigh,cor==0)
+  cjhigh_cor <- subset(cjhigh,cor==1)
+  cjhigh_err <- cast(cjhigh_err,sub~difflevel)
+  cjhigh_cor <- cast(cjhigh_cor,sub~difflevel)
+  
+  # Drop subject column
+  cjlow_err <- cjlow_err[,c(2:4)]
+  cjlow_cor <- cjlow_cor[,c(2:4)]
+  cjhigh_err <- cjhigh_err[,c(2:4)]
+  cjhigh_cor <- cjhigh_cor[,c(2:4)]
+  n <- length(cjlow_err)
+  
+  cjlow_err <- cjlow_err[,c("hard","medium","easy")];
+  cjlow_cor <- cjlow_cor[,c("hard","medium","easy")]
+  cjhigh_err <- cjhigh_err[,c("hard","medium","easy")]
+  cjhigh_cor <- cjhigh_cor[,c("hard","medium","easy")]
+  
+  stripchart(cjlow_err,ylim=c(.6,1), xlim=c(-.05,n-1), vertical = TRUE, col="white",frame=F,xaxt='n',
+             yaxt = 'n',xlab="",ylab = "", main = "Beta-manipulated feedback", cex.main = cex.title)
+  title(ylab = "Confidence", xlab = "Trial difficulty", line = 2.5,cex.lab=cex.lab.rel)
+  axis(1,at=0:(n-1),labels=names(cjlow_err), cex.axis=cex.axis);
+  axis(2, seq(.6,1,.5), cex.axis=cex.axis)
+  means <- sapply(cjlow_err, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty='dotted')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjlow_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE,lty='dotted')
+  
+  means <- sapply(cjhigh_err, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty='dotted')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjhigh_err),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION,lty='dotted')
+  
+  means <- sapply(cjlow_cor, mean)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=BLUE,lwd=lwd.dat,lty='dashed')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjlow_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=BLUE,lty='dashed')
+  
+  means <- sapply(cjhigh_cor, mean, na.rm=T)
+  lines(0:(n-1),means,type='b',pch=16,cex=cex.datdot,col=VERMILLION,lwd=lwd.dat,lty='dashed')
+  error.bar(0:(n-1),means,colSds(as.matrix(cjhigh_cor),na.rm=T)/sqrt(N_temp),lwd=lwd.dat,col=VERMILLION,lty='dashed')
+  
+  legend("top",legend=c("low","high"),horiz = T,
+         title = NULL,pch=rep(16,3),bty = "n",inset=0,
+         cex = cex.legend,col=c(BLUE,VERMILLION))
+  legend("bottomleft",legend=c("Correct trials","Error trials"),
+         title = NULL,lty=c("dashed","dotted"),bty = "n",inset=0,
+         cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+  
+  dev.off()
+  par(mfrow=c(1,1))
+}
