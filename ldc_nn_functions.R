@@ -103,7 +103,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
                          totRTname='rt2',targetname='fb',accname='cor',beta_input=.1,
                          error_type1='cross-entropy',error_type2='mse',binning=F,nbin=6,
                          shuffle=F,cost="separated",aggreg_pred="mean",Nskip_error=0,
-                         eta_sep=F, fitname='cj',x_err=NULL,mean_ev=F){
+                         eta_sep=F, fitname='cj',x_err=NULL,mean_ev=F,sim=T){
   #' Step 1 : Use DDM bound and drift rate to infer evidence accumulated at each trial
   #' Step 2 : Gradiant descent 
   #' Step 3 : Global cost is DDM cost + NN cost
@@ -131,7 +131,6 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
       # Add post-decisional evidence: EVpost ~ N(drift*RT, sigma²*RT)
       # Post decision drift rate sign depends on accuracy
       obs_nn$evidence <- obs_nn$evidence + obs_nn[,accname] * obs_nn$drift * obs_nn[,confRTname] + rnorm(nrow(obs_nn))*sigma*sqrt(obs_nn[,confRTname]) 
-      
     }
     if (returnFit) {
       if (is.null(x_err)) {
