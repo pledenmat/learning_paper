@@ -2165,7 +2165,6 @@ if (stat_tests) {
   anova(m.cond.acc.x) #Results
 }
 
-
 # Plot Feedback presented ------------------------------------------------
 width <- 16 # Plot size expressed in cm
 height <- 10
@@ -2581,3 +2580,234 @@ if (plots) {
   dev.off()
   par(mfrow=c(1,1))
 }
+
+# Not in Manuscript but cool ----------------------------------------------
+# Plot parameter aggreg trace with P1 skipped -----------------------------
+
+Data_save <- Data
+Data <- subset(Data,phase>0)
+Nalpha <- length(unique(Data_alpha$sub))
+Nbeta <- length(unique(Data_beta$sub))
+conf_group <- with(Data,aggregate(alpha,by=list(phase_block,manip,condition),mean))
+conf_group_sd <- with(Data,aggregate(alpha,by=list(phase_block,manip,condition),sd))
+names(conf_group) <- c('phase_block','manip','condition','cj')
+names(conf_group_sd) <- c('phase_block','manip','condition','cj')
+
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition)
+conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
+conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
+conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition)
+conf_beta_sd <- subset(conf_group_sd,manip=='beta')
+conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
+conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
+
+jpeg('alpha_trace_aggreg_p1skip.jpg', width = 20, height = 12, units = 'cm', res = 300)
+par(mfrow=c(1,2))
+plot(conf_alpha$minus,ylim=c(0,15),main='Alpha experiment',col = BLUE, type = 'b',
+     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",
+     xlab = "Within phase block of trials")
+axis(1, at = 1:4, labels = 1:4)
+lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
+error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
+          lwd=2, col = BLUE)
+error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
+          lwd=2, col = VERMILLION)
+legend("bottom",legend = c('Plus','Minus'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n')
+
+
+plot(conf_beta$minus,ylim=c(0,15),main='Beta experiment',col = BLUE, type = 'b',
+     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",
+     xlab = "Within phase block of trials")
+axis(1, at = 1:4, labels = 1:4)
+lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
+error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
+          lwd=2, col = BLUE)
+error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
+          lwd=2, col = VERMILLION)
+par(mfrow=c(1,1))
+dev.off()
+
+Nalpha <- length(unique(Data_alpha$sub))
+Nbeta <- length(unique(Data_beta$sub))
+conf_group <- with(Data,aggregate(beta,by=list(phase_block,manip,condition),mean))
+conf_group_sd <- with(Data,aggregate(beta,by=list(phase_block,manip,condition),sd))
+names(conf_group) <- c('phase_block','manip','condition','cj')
+names(conf_group_sd) <- c('phase_block','manip','condition','cj')
+
+conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition)
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition)
+conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
+conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
+conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition)
+conf_beta_sd <- subset(conf_group_sd,manip=='beta')
+conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
+conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
+
+jpeg('beta_trace_aggreg_p1skip.jpg', width = 20, height = 12, units = 'cm', res = 300)
+par(mfrow=c(1,2))
+plot(conf_alpha$minus,ylim=c(15,22),main='Alpha experiment',col = BLUE, type = 'b',
+     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",
+     xlab = "Within phase block of trials")
+axis(1, at = 1:4, labels = 1:4)
+lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
+error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
+          lwd=2, col = BLUE)
+error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
+          lwd=2, col = VERMILLION)
+legend("bottom",legend = c('Plus','Minus'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16),horiz = T, bty = 'n')
+
+
+plot(conf_beta$minus,ylim=c(15,22),main='Beta experiment',col = BLUE, type = 'b',
+     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",
+     xlab = "Within phase block of trials")
+axis(1, at = 1:4, labels = 1:4)
+lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
+error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
+          lwd=2, col = BLUE)
+error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
+          lwd=2, col = VERMILLION)
+par(mfrow=c(1,1))
+dev.off()
+Data <- Data_save
+
+
+
+# Plot Accuracy ~ Confidence ----------------------------------------------
+
+cor_cj <- with(Data,aggregate(cor,by=list(cj,sub),mean))
+names(cor_cj) <- c('cj','sub','cor')
+cor_cj$cj <- cor_cj$cj*6
+count_data <- table(cor_cj$cj)
+r <- cor(cor_cj$cj,cor_cj$cor)
+cor_cj <- as.matrix(cast(cor_cj, sub~cj))
+cexlab <- 2.25
+cexax <- 1.5
+cexmain <- 2.25
+cexpt <- 1.5
+ntick <- 2
+tiff("accuracy_confidence.tiff",width = 10.5, height = 10.5,units='cm',res=300)
+par(mar=c(4,4,4,1)+.1)
+plot(colMeans(cor_cj,na.rm=T),ylim=c(0,1),xlab='',col='white',
+     ylab='',bty='n', main = paste0('r = ',round(r,3)),
+     cex.axis=cexax,cex.main=cexmain,yaxt='n')
+mtext(side=1,line=2.5,text='Confidence',cex=cexlab)
+mtext(side=2,line=2.5,text='Accuracy',cex=cexlab)
+axis(2,at=0:ntick/ntick,labels = 0:ntick/ntick,cex.axis = cexax)
+for (i in 1:6) {
+  points(jitter(rep(i,nrow(cor_cj)),amount=.1),cor_cj[,i],pch=16,col=rgb(.5,.5,.5,.2),cex=cexpt)
+}
+lines(colMeans(cor_cj,na.rm=T),type='b',pch=16,lwd=3,cex=cexpt)
+error.bar(1:6,colMeans(cor_cj,na.rm=T),colSds(cor_cj,na.rm=T)/sqrt(count_data),lwd=3)
+dev.off()
+par(mar=c(5,4,4,2)+.1)
+
+
+# Analyze variability in parameter trace btw simulations ------------------
+go_to("param_trace_per_sub")
+col_indiv <- rgb(.7,.7,.7,.2)
+for (s in subs) {
+  print(paste("Plotting parameter trace of sub",s))
+  temp_alpha <- as.matrix(cast(subset(anal_sim,sub==s),trial~sim, value = 'alpha'))
+  temp_beta <- as.matrix(cast(subset(anal_sim,sub==s),trial~sim, value = 'beta'))
+  temp_cj <- as.matrix(cast(subset(anal_sim,sub==s),trial~sim, value = 'cj'))
+  jpeg(filename=paste0("param_trace_",s,".jpg"),width=45,height=15,units='cm',res=300)
+  par(mfrow=c(1,3))
+  plot(rowMeans(temp_alpha,na.rm=T),col='white',xlab='Trial',ylab='Alpha',
+       bty='n',ylim=range(temp_alpha,na.rm=T))
+  for (i in 1:Nsim) {
+    lines(temp_alpha[,i], col = col_indiv)
+  }
+  lines(rowMeans(temp_alpha,na.rm=T),type='l',lwd=1)
+  plot(rowMeans(temp_beta,na.rm=T),col='white',xlab='Trial',ylab='beta',
+       bty='n',ylim=range(temp_beta,na.rm=T))
+  for (i in 1:Nsim) {
+    lines(temp_beta[,i], col = col_indiv)
+  }
+  lines(rowMeans(temp_beta,na.rm=T),type='l',lwd=1)
+  plot(rowMeans(temp_cj,na.rm=T),col='white',xlab='Trial',ylab='Confidence',
+       bty='n',ylim=range(temp_cj,na.rm=T))
+  for (i in 1:Nsim) {
+    lines(temp_cj[,i], col = col_indiv)
+  }
+  lines(rowMeans(temp_cj,na.rm=T),type='l',lwd=1)
+  
+  dev.off()
+}
+setwd("..")
+par(mfrow=c(1,1))
+
+
+
+# Plot parameters per group -----------------------------------------------
+
+
+par_beta <- subset(par,manip=='beta')
+par_beta$group <- "static"
+par_beta[par_beta$sub %in% sub_learn_best,]$group <- "dynamic"
+
+with(par_beta,aggregate(eta_a,by=list(group=group,model=model),mean))
+with(par_beta,aggregate(eta_b,by=list(group=group,model=model),mean))
+with(par_beta,aggregate(a0,by=list(group=group,model=model),mean))
+with(par_beta,aggregate(b0,by=list(group=group,model=model),mean))
+
+par_alpha <- subset(par,manip=='alpha')
+par_alpha$group <- "static"
+par_alpha[par_alpha$sub %in% sub_learn_best,]$group <- "dynamic"
+
+with(par_alpha,aggregate(eta_a,by=list(group=group,model=model),mean))
+with(par_alpha,aggregate(eta_b,by=list(group=group,model=model),mean))
+with(par_alpha,aggregate(a0,by=list(group=group,model=model),mean))
+with(par_alpha,aggregate(b0,by=list(group=group,model=model),mean))
+
+# Plot learning rates (eta_a and eta_b) separately for each group
+par_beta$group <- factor(par_beta$group,levels=c("static","dynamic"))
+par_alpha$group <- factor(par_alpha$group,levels=c("static","dynamic"))
+
+
+ggplot(subset(par_beta,model=='both'), aes(x=eta_a, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+ggplot(subset(par_beta,model=='both'), aes(x=eta_b, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+ggplot(subset(par_alpha,model=='both'), aes(x=eta_a, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+ggplot(subset(par_alpha,model=='both'), aes(x=eta_b, fill=group)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  # theme_ipsum() +
+  labs(fill="")
+
+
+# Learning rates
+ggplot(subset(par_alpha,model=='both'), aes(x=eta_a, y=eta_b, color=group)) + 
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Alpha experiment")
+
+ggplot(subset(par_beta,model=='both'), aes(x=eta_a, y=eta_b, color=group)) +
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Beta experiment")
+
+# Initial values
+ggplot(subset(par_alpha,model=='both'), aes(x=a0, y=b0, color=group)) + 
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Alpha experiment")
+
+ggplot(subset(par_beta,model=='both'), aes(x=a0, y=b0, color=group)) +
+  geom_point(size=2, alpha = .5) +
+  ggtitle("Beta experiment")
+
+
