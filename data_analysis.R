@@ -460,6 +460,27 @@ for (m in models) {
 
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
+
+# Analysis of model prediction --------------------------------------------
+if (stat_tests) {
+  
+  cj.pred.cond.acc.interaction.beta.static <- lmer(cj_pred_both_learn ~ condition*cor*difflevel + (cor + condition + condition:cor|sub),
+                                                   data = Data_beta, REML = F,control = control)
+  plot(resid(cj.pred.cond.acc.interaction.beta.static),Data_beta$cj_pred_both_learn) #Linearity
+  leveneTest(residuals(cj.pred.cond.acc.interaction.beta.static) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
+  qqmath(cj.pred.cond.acc.interaction.beta.static) #Normality
+  anova(cj.pred.cond.acc.interaction.beta.static) #Results  
+  post_hoc <- emmeans(cj.pred.cond.acc.interaction.beta.static, ~ difflevel)
+  pairs(post_hoc)
+  
+  cj.pred.cond.acc.interaction.beta <- lmer(cj_pred_both_learn~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                            data = Data_beta, REML = F,control = control)
+  plot(resid(cj.pred.cond.acc.interaction.beta),Data_beta$cj_pred_both_learn) #Linearity
+  leveneTest(residuals(cj.pred.cond.acc.interaction.beta) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
+  qqmath(cj.pred.cond.acc.interaction.beta) #Normality
+  vif(cj.pred.cond.acc.interaction.beta) # Multicollinearity
+  anova(cj.pred.cond.acc.interaction.beta) #Results  
+}
 # Model comparison --------------------------------------------------------
 par$Ndata_point <-  round(nrow(Data)/Nsub)
 par$Npar <- 3
@@ -493,14 +514,30 @@ bp.labels[bp.labels=="both"] <- "Full learning"
 bp.labels[bp.labels=="no"] <- "No learning"
 text(x = bp, y = -0.5, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
 dev.off()
+
 ### Best model per participant
 model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
 model_bic <- cast(model_bic, sub + manip ~ model)
 models_ord <- names(model_bic)[3:6]
 model_bic$best <- models_ord[apply(model_bic[,3:6],1,which.min)]
+model_bic$best_learning <- apply(model_bic[,3:5],1,min)
 with(model_bic,aggregate(best,list(manip),table))
 table(subset(model_bic,manip=='alpha')$best)
 table(subset(model_bic,manip=='beta')$best)
+model_bic$diff_learn <- model_bic$best_learning - model_bic$no
+
+best_model <- table(subset(model_bic,manip=='beta')$best)/Nbeta*100
+jpeg("model_comparison_best.jpg",width=10,height=10,units = 'cm',res=600)
+bp <- barplot(best_model,ylab = "% participants", xlab = "")
+# Add model names under each bar
+bp.labels <- subset(mean_bic,manip=='beta')$model
+bp.labels[bp.labels=="alpha"] <- expression(paste(alpha,"-learning"))
+bp.labels[bp.labels=="beta"] <- expression(paste(beta,"-learning"))
+bp.labels[bp.labels=="both"] <- "Full learning"
+bp.labels[bp.labels=="no"] <- "No learning"
+text(x = bp, y = -0.5, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
+dev.off()
+
 
 sub_nolearn_best <- subset(model_bic,best=='no')$sub
 sub_learn_best <- subset(model_bic,best!='no')$sub
@@ -513,7 +550,7 @@ table(model_bic_learn_vs_nolearn$best)
 if ("best" %in% names(Data)) {
   Data <- Data[,!(names(Data) == "best")]
 }
-Data <- merge(Data,model_bic[,c('sub','manip','best')])
+Data <- merge(Data,model_bic[,c('sub','manip','best','diff_learn')])
 Data$best <- as.factor(Data$best)
 
 # Add a column with the predicted confidence from the best model per participant to the empirical data frame
@@ -1557,10 +1594,8 @@ dev.off()
 if (stat_tests) {
   Data$group <- "static"
   Data[Data$sub %in% sub_learn_best,]$group <- "dynamic"
-  Data_beta$group <- "static"
-  Data_beta[Data_beta$sub %in% sub_learn_best,]$group <- "dynamic"
-  Data_alpha$group <- "static"
-  Data_alpha[Data_alpha$sub %in% sub_learn_best,]$group <- "dynamic"
+  Data_alpha <- subset(Data,manip=="alpha")
+  Data_beta <- subset(Data,manip=="beta")
   
   control <- lmerControl(optimizer = "bobyqa")
   glmercontrol <- glmerControl(optimizer = "bobyqa")
@@ -1597,6 +1632,7 @@ if (stat_tests) {
   pairs(post_hoc)
   post_hoc <- emmeans(cj.dynamic.group, ~ condition:withinphasetrial | cor)
   pairs(post_hoc)
+  
   # Beta
   cj.cond.acc.interaction.beta.0 <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
                                          data = Data_beta, REML = F,control = control)
@@ -1615,6 +1651,11 @@ if (stat_tests) {
   cj.dynamic.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
                            data = subset(Data_beta,group=="dynamic"), REML = F,control = control)
   anova(cj.dynamic.group)
+  
+  # Same results if we look at the difference in BIC instead of groups
+  cj.cond.acc.interaction.beta.bic <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + condition:withinphasetrial:diff_learn + (cor + condition + condition:cor|sub),
+                                           data = Data_beta, REML = F,control = control)
+  anova(cj.cond.acc.interaction.beta.bic)
 }
 
 
@@ -1626,6 +1667,7 @@ questions[questions$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
 table(questions$manip)
 questions$group <- "static"
 questions[questions$sub %in% sub_learn_best,]$group <- "dynamic"
+
 # Recode Likert responses to numeric
 questions[questions$questionResp=="['d']",]$questionResp <- 1
 questions[questions$questionResp=="['f']",]$questionResp <- 2
@@ -1680,8 +1722,8 @@ with(question2,aggregate(questionResp,by=list(group,manip),table))
 # Test difference in response between groups
 question2$questionResp <- as.ordered(question2$questionResp)
 
-ordinal.reg <- clm(data=question2,questionResp~group*manip)
-summary(ordinal.reg)
+ordinal.reg <- clm(data=subset(question2,sub %in% Data_beta$sub),questionResp~group)
+anova(ordinal.reg)
 
 
 # 3. 'Indicate to what extent you feel that the feedback you received closely 
@@ -1691,12 +1733,9 @@ question3$questionResp <- as.numeric(question3$questionResp)
 with(question3,aggregate(questionResp,by=list(group,manip),table))
 # Test difference in response between groups
 question3$questionResp <- as.ordered(question3$questionResp)
-ordinal.reg <- clm(data=question3,questionResp~group*manip)
-summary(ordinal.reg)
-ordinal.reg.beta <- clm(data=subset(question3,sub %in% Data_beta$sub),questionResp~group)
-summary(ordinal.reg.beta)
-ordinal.reg.alpha <- clm(data=subset(question3,sub %in% Data_alpha$sub),questionResp~group)
-summary(ordinal.reg.alpha)
+
+ordinal.reg <- clm(data=subset(question3,sub %in% Data_beta$sub),questionResp~group)
+anova(ordinal.reg)
 
 # Check participants understood the feedback
 question4 <- subset(questions,questionID==5)
@@ -1715,20 +1754,10 @@ Data[Data$sub %in% fb_understood_sub,]$fb_understood <- 1
 Data_beta$fb_understood <- 0
 Data_beta[Data_beta$sub %in% fb_understood_sub,]$fb_understood <- 1
 
-Data_alpha$fb_understood <- 0
-Data_alpha[Data_alpha$sub %in% fb_understood_sub,]$fb_understood <- 1
-
 with(Data_beta,aggregate(sub,by=list(fb_understood,group),length_unique))
-with(Data_alpha,aggregate(sub,by=list(fb_understood,group),length_unique))
-
-fb_understood.test <- glmer(fb_understood ~ group + (1|sub), data=Data, family="binomial", control = glmercontrol)
-Anova(fb_understood.test)
 
 fb_understood.test.beta <- glmer(fb_understood ~ group + (1|sub), data=Data_beta, family="binomial", control = glmercontrol)
 Anova(fb_understood.test.beta)
-
-fb_understood.test.alpha <- glmer(fb_understood ~ group + (1|sub), data=Data_alpha, family="binomial", control = glmercontrol)
-Anova(fb_understood.test.alpha)
 
 # Behavior results figure layout ----------------------------------------------------
 diff_order <- c('hard','medium','easy')
