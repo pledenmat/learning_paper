@@ -458,6 +458,8 @@ for (m in models) {
   
 }
 
+anal_sim$cj_scaled <- anal_sim$cj*6
+
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
 
@@ -505,7 +507,8 @@ mean_bic[mean_bic$manip=="beta","delta"] <-
 go_to("plots")
 go_to("paper")
 jpeg("model_comparison.jpg",width=10,height=10,units = 'cm',res=600)
-bp <- barplot(subset(mean_bic,manip=='beta')$delta,ylab = expression(paste(Delta,"BIC")), xlab = "")
+bp <- barplot(subset(mean_bic,manip=='beta')$delta, las = 2,
+              ylab = expression(paste(Delta,"BIC")), xlab = "")
 # Add model names under each bar
 bp.labels <- subset(mean_bic,manip=='beta')$model
 bp.labels[bp.labels=="alpha"] <- expression(paste(alpha,"-learning"))
@@ -527,15 +530,16 @@ table(subset(model_bic,manip=='beta')$best)
 model_bic$diff_learn <- model_bic$best_learning - model_bic$no
 
 best_model <- table(subset(model_bic,manip=='beta')$best)/Nbeta*100
+names(best_model) <- ""
 jpeg("model_comparison_best.jpg",width=10,height=10,units = 'cm',res=600)
-bp <- barplot(best_model,ylab = "% participants", xlab = "")
+bp <- barplot(best_model,ylab = "% participants", xlab = "", las = 2)
 # Add model names under each bar
 bp.labels <- subset(mean_bic,manip=='beta')$model
 bp.labels[bp.labels=="alpha"] <- expression(paste(alpha,"-learning"))
 bp.labels[bp.labels=="beta"] <- expression(paste(beta,"-learning"))
 bp.labels[bp.labels=="both"] <- "Full learning"
 bp.labels[bp.labels=="no"] <- "No learning"
-text(x = bp, y = -0.5, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
+text(x = bp, y = -2, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
 dev.off()
 
 
@@ -567,6 +571,12 @@ for (s in 1:Nsub) {
     Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_both_learn
   }
 }
+
+# Create groups according to best model
+Data$group <- "dynamic"
+Data[Data$best == "no",]$group <- "static"
+Data_alpha <- subset(Data,manip=="alpha")
+Data_beta <- subset(Data,manip=="beta")
 
 # Compute rolling mean per subject ----------------------------------------
 n <- 25 # Rolling mean window size
@@ -620,835 +630,137 @@ cj_pred_ma_no_learn$model <- "no"
 cj_pred_ma_both_learn$model <- "both"
 cj_pred <- rbind(cj_pred_ma_no_learn,cj_pred_ma_alpha_learn,
                  cj_pred_ma_beta_learn,cj_pred_ma_both_learn)
-# Plot traces LR ---------------------------------------------------
-
-width <- 16 # Plot size expressed in cm
-height <- 10
-
-
-go_to("plots")
-go_to("alternating_fb")
-go_to("trim")
-for (m in models) {
-  jpeg(filename = paste0("traces_",m,"_learn.jpg"),units = 'cm',width = 42,height = 30,res=300)
-  # layout(matrix(c(1,1,3,3,2,2,4,4,5,6,7,8),ncol=3))
-  layout(matrix(c(1,2,9,9,5,6,11,11,1,3,10,10,5,7,12,12,1,4,13,14,5,8,15,16),ncol=3),heights = c(.05,.05,.2,.2,.05,.05,.2,.2))
-  par(mar=c(0,0,0,0))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main = expression(paste(alpha,"-Manipulated Feedback, empirical fit")))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main= expression("Empirical Data"))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main= expression("Model Fits"))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main= expression("Weight traces"))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main = expression(paste(beta,"-Manipulated Feedback, empirical fit")))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main= expression("Empirical Data"))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main= expression("Model Fits"))
-  plot.new()
-  title(cex.main=cex.title,line=title_line,main= expression("Weight traces"))
-  par(mar=c(4,5,0,0)+.1)
-  
-  # Plot ExpA trace
-  plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
-  minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
-  Ntrials_phase <- Ntrials/length(unique(Data$phase))
-  
-  conf_min <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_min) <- c("trial","cor","cj")
-  conf_min_se <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_min_se) <- c("trial","cor","cj")
-  conf_plus <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_plus) <- c("trial","cor","cj")
-  conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_plus_se) <- c("trial","cor","cj")
-  
-  
-  xlen <- dim(conf_plus)[1]/2
-  conf_min_err <- subset(conf_min,cor==0)$cj
-  conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-  conf_min_cor <- subset(conf_min,cor==1)$cj
-  conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-  conf_plus_err <- subset(conf_plus,cor==0)$cj
-  conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-  conf_plus_cor <- subset(conf_plus,cor==1)$cj
-  conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-  
-  plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),
-       main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-       xlab = "Trial", ylab = "Confidence")
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_min_cor,col=BLUE)
-  polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_plus_err,lty = 2,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  lines(conf_plus_cor,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",alpha," feedback first")), 
-                                                expression(paste("low ",alpha," feedback first"))),
-         col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-  legend(cex=cex.legend,"bottomright",legend = c("Correct trials", "Error trials"),
-         bty = 'n', lty = c(1,2))
-  
-  
-  # Plot ExpA predictions
-  plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
-  minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
-  
-  conf_min <- with(subset(cj_pred,model==m&sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_min) <- c("trial","cor","cj")
-  conf_min_se <- with(subset(cj_pred,model==m&sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_min_se) <- c("trial","cor","cj")
-  conf_plus <- with(subset(cj_pred,model==m&sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_plus) <- c("trial","cor","cj")
-  conf_plus_se <- with(subset(cj_pred,model==m&sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_plus_se) <- c("trial","cor","cj")
-  
-  xlen <- dim(conf_plus)[1]/2
-  conf_min_err <- subset(conf_min,cor==0)$cj
-  conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-  conf_min_cor <- subset(conf_min,cor==1)$cj
-  conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-  conf_plus_err <- subset(conf_plus,cor==0)$cj
-  conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-  conf_plus_cor <- subset(conf_plus,cor==1)$cj
-  conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-  
-  plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),
-       main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-       xlab = "Trial", ylab = "Confidence")
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_min_cor,col=BLUE)
-  polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_plus_err,lty = 2,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  lines(conf_plus_cor,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  # Plot ExpB trace 
-  plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
-  minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
-  
-  conf_min <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_min) <- c("trial","cor","cj")
-  conf_min_se <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_min_se) <- c("trial","cor","cj")
-  conf_plus <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_plus) <- c("trial","cor","cj")
-  conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_plus_se) <- c("trial","cor","cj")
-  
-  xlen <- dim(conf_plus)[1]/2
-  conf_min_err <- subset(conf_min,cor==0)$cj
-  conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-  conf_min_cor <- subset(conf_min,cor==1)$cj
-  conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-  conf_plus_err <- subset(conf_plus,cor==0)$cj
-  conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-  conf_plus_cor <- subset(conf_plus,cor==1)$cj
-  conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-  
-  plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),     
-       main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-       xlab = "Trial", ylab = "Confidence")
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_min_cor,col=BLUE)
-  polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_plus_err,lty = 2,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  lines(conf_plus_cor,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",beta," feedback")), expression(paste("low ",beta," feedback"))),
-         col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-  
-  # Plot ExpB predictions 
-  plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
-  minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
-  
-  conf_min <- with(subset(cj_pred,model==m&sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_min) <- c("trial","cor","cj")
-  conf_min_se <- with(subset(cj_pred,model==m&sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_min_se) <- c("trial","cor","cj")
-  conf_plus <- with(subset(cj_pred,model==m&sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-  names(conf_plus) <- c("trial","cor","cj")
-  conf_plus_se <- with(subset(cj_pred,model==m&sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-  names(conf_plus_se) <- c("trial","cor","cj")
-  
-  xlen <- dim(conf_plus)[1]/2
-  conf_min_err <- subset(conf_min,cor==0)$cj
-  conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-  conf_min_cor <- subset(conf_min,cor==1)$cj
-  conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-  conf_plus_err <- subset(conf_plus,cor==0)$cj
-  conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-  conf_plus_cor <- subset(conf_plus,cor==1)$cj
-  conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-  
-  plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),     
-       main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-       xlab = "Trial", ylab = "Confidence")
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_min_cor,col=BLUE)
-  polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  lines(conf_plus_err,lty = 2,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  lines(conf_plus_cor,col=VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  # Plot parameter traces 
-  plus_first <- unique(subset(Data_alpha,phase==0&condition=='plus')$sub)
-  minus_first <- unique(subset(Data_alpha,phase==0&condition=='minus')$sub)
-  
-  # Plot trace alpha experiment
-  alpha_trace <- Data_alpha[,c(paste0("alpha_",m,"_learn"),"sub","trial","condition")]
-  names(alpha_trace) <- c("alpha","sub","trial","condition")
-  alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub ~trial, value = "alpha", fun.aggregate = mean)
-  alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first),sub~trial, value = "alpha", fun.aggregate = mean)
-  count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
-  count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y)))))
-  count_plus <- count_plus[2:length(count_plus)]
-  count_minus <- count_minus[2:length(count_minus)]
-  
-  plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-       ylim = alpha_range,bty='n')
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
-                                     colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
-                                                                                            colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) + 
-                                     colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(alpha_trace_plus,na.rm=T) - 
-                                                                                          colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  
-  beta_trace <- Data_alpha[,c(paste0("beta_",m,"_learn"),"sub","trial","condition")]
-  names(beta_trace) <- c("beta","sub","trial","condition")
-  beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "beta", fun.aggregate = mean)
-  beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first),sub~trial, value = "beta", fun.aggregate = mean)
-  plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-       ylim=beta_range,bty='n')
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
-                                     colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
-                                                                                           colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_plus,na.rm=T) + 
-                                     colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(beta_trace_plus,na.rm=T) - 
-                                                                                         colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  # Plot trace Beta experiment
-  plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
-  minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
-  
-  alpha_trace <- Data_beta[,c(paste0("alpha_",m,"_learn"),"sub","trial","condition")]
-  names(alpha_trace) <- c("alpha","sub","trial","condition")
-  alpha_trace_minus <- cast(subset(alpha_trace,sub %in% minus_first),sub~trial, value = "alpha", fun.aggregate = mean)
-  alpha_trace_plus <- cast(subset(alpha_trace,sub %in% plus_first),sub~trial, value = "alpha", fun.aggregate = mean)
-  count_plus <- sapply(alpha_trace_plus, function(y) sum(length(which(!is.na(y)))))
-  count_minus <- sapply(alpha_trace_minus, function(y) sum(length(which(!is.na(y)))))
-  count_plus <- count_plus[2:length(count_plus)]
-  count_minus <- count_minus[2:length(count_minus)]
-  
-  plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(alpha_trace_minus,na.rm=T),type='l',col=BLUE,xlab="",ylab="Alpha",
-       ylim=alpha_range,bty='n')
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  lines(colMeans(alpha_trace_plus,na.rm=T),col=VERMILLION)
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_minus,na.rm=T) + 
-                                     colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(alpha_trace_minus,na.rm=T) - 
-                                                                                            colSds(alpha_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(alpha_trace_plus,na.rm=T) + 
-                                     colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(alpha_trace_plus,na.rm=T) - 
-                                                                                          colSds(alpha_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  
-  beta_trace <- Data_beta[,c(paste0("beta_",m,"_learn"),"sub","trial","condition")]
-  names(beta_trace) <- c("beta","sub","trial","condition")
-  beta_trace_minus <- cast(subset(beta_trace,sub %in% minus_first),sub~trial, value = "beta", fun.aggregate = mean)
-  beta_trace_plus <- cast(subset(beta_trace,sub %in% plus_first),sub~trial, value = "beta", fun.aggregate = mean)
-  plot(cex.lab = cex.lab,cex.axis=cex.axis,colMeans(beta_trace_minus,na.rm=T),type='l',col=BLUE,xlab="Trial",ylab="Beta",
-       ylim=beta_range,bty='n')
-  abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-  lines(colMeans(beta_trace_plus,na.rm = T),col=VERMILLION)
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_minus,na.rm=T) + 
-                                     colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus),(colMeans(beta_trace_minus,na.rm=T) - 
-                                                                                           colSds(beta_trace_minus,na.rm=T)/sqrt(count_minus))[Ntrials:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:Ntrials,Ntrials:1),c(colMeans(beta_trace_plus,na.rm=T) + 
-                                     colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus),(colMeans(beta_trace_plus,na.rm=T) - 
-                                                                                         colSds(beta_trace_plus,na.rm=T)/sqrt(count_plus))[Ntrials:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  dev.off()
-  
-}
-
-# Plot correlation between observed and predicted -------------------------
-plot(Data$cj,Data$cj_pred)
-library(vioplot)
-cj_lab <- sort(unique(Data$cj))
-jpeg(filename="scatter_pred_behav.jpg",width=16,height=8,units='cm',res=300)
-with(Data , vioplot( 
-  cj_pred[cj==cj_lab[1]] , cj_pred[cj==cj_lab[2]], cj_pred[cj==cj_lab[3]],  
-  cj_pred[cj==cj_lab[4]] , cj_pred[cj==cj_lab[5]], cj_pred[cj==cj_lab[6]],  
-  col=rgb(0.1,0.4,0.7,0.7) , names=c(1,2,3,4,5,6),
-  xlab = "Confidence (behavior)", ylab = "Confidence (model)",
-  main = paste("cor =",round(cor(Data$cj,Data$cj_pred),3))
-))
-
-jpeg(filename="density_pred_behav.jpg",width=16,height=12,units='cm',res=300)
-x_coord <- 0:5
-plot.new()
-plot.window(xlim=c(-.1,6), ylim=c(-.1,1),xaxt='n',
-            xlab = "Confidence (behavior)", ylab = "Confidence (model)",
-            main=paste("cor =",round(cor(Data$cj,Data$cj_pred),3)))
-# plot(a_free$`0`,, col="white",frame=F,, 
-#      ylab="",yaxt='n',xlab="");
-axis(2,at=seq(0,1,.2),label=seq(0,1,.2))
-axis(1,at=x_coord,label=cj_lab*6)
-mtext(text = "Confidence (model)",side = 2, line = 2.5)
-mtext(text = "Confidence (behavior)",side = 1, line = 2.5)
-mtext(text = paste("cor =",round(cor(Data$cj,Data$cj_pred),3)),side = 3,line=1,
-      cex = 1.5)
-# segments(x0=0,y0=0,y1=2,lty=2,col="lightgrey")
-for(i in 1:length(x_coord)){
-  polygon((rescale(density(subset(Data,cj==cj_lab[i])$cj_pred)$y,to=c(0,.9)))+x_coord[i],
-          density(subset(Data,cj==cj_lab[i])$cj_pred)$x,
-          col=rgb(0.1,0.4,0.7,0.7),border=F)
-}
-abline(lm(Data$cj~Data$cj_pred)$coef[1],lm(Data$cj~Data$cj_pred)$coef[2]/6)
-dev.off()
-
-# Split trials in each phase -----------------------------------------
-# Aggregating behavior
-Nalpha <- length(unique(Data_alpha$sub))
+# Behavior results figure layout ----------------------------------------------------
+diff_order <- c('hard','medium','easy')
+Ndiff <- length(diff_order)
 Nbeta <- length(unique(Data_beta$sub))
-conf_group <- with(Data,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
-names(conf_group) <- c('phase_block','manip','sub','condition','cor','cj')
+cexax <- 1
+cex.lab <- 1
+cexleg <- 1
+cex.title <- 1
+cex.axis <- 1
+linelab <- 2.75
+lwdmean <- 3
+mar.rt.acc <- c(2,3.75,0,1)
+mar.cj <- c(4,3.75,0,1)
+yrange_rt <- c(.8,1.1)
+yrange_cj <- c(4.2,5.4)
+jpeg("Behavior_results.jpg", width = 19, height = 19, units = "cm", pointsize = 12, res = 1000)
 
-trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=4),
-                           cor=c(0,1),condition=rep(c("minus","plus"),each=2),sub=rep(subs,each=Nphase_block*4))
+layout(matrix(c(1,2,3,4,5,6),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5))
 
-conf_group <- merge(conf_group,trials_phase,all=T)
-conf_group[conf_group$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
-conf_group[conf_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
-table(complete.cases(conf_group$cj))
-count_complete <- function(dat) {
-  return(sum(complete.cases(dat)))
-}
-
-conf_alpha_count <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,count_complete)
-conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_alpha_sd <- cast(subset(conf_group,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_alpha_sd[,2:5] <- conf_alpha_sd[,2:5]/sqrt(conf_alpha_count[,2:5])
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,count_complete)
-conf_beta_sd <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_beta_sd[,2:5] <- conf_beta_sd[,2:5]/sqrt(conf_beta_count[,2:5])
-
-# Aggregating model fits
-for (m in models) {
-  print(m)
-  cj_pred <- with(subset(anal_sim,model==m),aggregate(cj,by=list(trial,sub),mean))
-  names(cj_pred) <- c("trial","sub","cj")
-  cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  alpha <- with(subset(anal_sim,model==m),aggregate(alpha,by=list(trial,sub),mean))
-  names(alpha) <- c("trial","sub","alpha")
-  alpha <- merge(alpha,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  beta <- with(subset(anal_sim,model==m),aggregate(beta,by=list(trial,sub),mean))
-  names(beta) <- c("trial","sub","beta")
-  beta <- merge(beta,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-  
-  conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
-  names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
-  
-  conf_alpha_pred_count <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor, fun.aggregate = length)
-  conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-  conf_alpha_pred_sd <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-  conf_alpha_pred_sd[,2:5] <- conf_alpha_pred_sd[,2:5]/sqrt(conf_alpha_pred_count[,2:5])
-  
-  conf_beta_pred_count <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor, fun.aggregate = length)
-  conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-  conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-  conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
-  
-  alpha_group_pred <- with(alpha,aggregate(alpha,by=list(phase_block,manip,sub,condition),mean))
-  names(alpha_group_pred) <- c('phase_block','manip','sub','condition','cj')
-  
-  alpha_alpha_pred_count <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition, fun.aggregate = length)
-  alpha_alpha_pred <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  alpha_alpha_pred_sd <- cast(subset(alpha_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  alpha_alpha_pred_sd[,2:3] <- alpha_alpha_pred_sd[,2:3]/sqrt(alpha_alpha_pred_count[,2:3])
-  
-  alpha_beta_pred_count <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition, fun.aggregate = length)
-  alpha_beta_pred <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  alpha_beta_pred_sd <- cast(subset(alpha_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  alpha_beta_pred_sd[,2:3] <- alpha_beta_pred_sd[,2:3]/sqrt(alpha_beta_pred_count[,2:3])
-  
-  
-  beta_group_pred <- with(beta,aggregate(beta,by=list(phase_block,manip,sub,condition),mean))
-  names(beta_group_pred) <- c('phase_block','manip','sub','condition','cj')
-  
-  beta_alpha_pred_count <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition, fun.aggregate = length)
-  beta_alpha_pred <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  beta_alpha_pred_sd <- cast(subset(beta_group_pred,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  beta_alpha_pred_sd[,2:3] <- beta_alpha_pred_sd[,2:3]/sqrt(beta_alpha_pred_count[,2:3])
-  
-  beta_beta_pred_count <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition, fun.aggregate = length)
-  beta_beta_pred <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-  beta_beta_pred_sd <- cast(subset(beta_group_pred,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-  beta_beta_pred_sd[,2:3] <- beta_beta_pred_sd[,2:3]/sqrt(beta_beta_pred_count[,2:3])
-  
-  xlen <- nrow(conf_alpha)
-  go_to("plots")
-  tiff(paste0('trace_aggreg_alpha_',m,'_learn.tiff'), width = 36, height = 36, units = 'cm', res = 300)
-  layout(matrix(c(1,2,1,3),ncol=2))
-  par(mar=c(5,5,4,2)+.1)
-  
-  plot(conf_alpha$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',main=paste("Alpha-Manipulated Feedback",", empirical fits,",m,"learn"),
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
-       xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(conf_alpha$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  lines(conf_alpha$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-  lines(conf_alpha$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-  error.bar(1:xlen,conf_alpha$minus_0,conf_alpha_sd$minus_0,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,conf_alpha$plus_0,conf_alpha_sd$plus_0,
-            lwd=2, col = VERMILLION)
-  error.bar(1:xlen,conf_alpha$minus_1,conf_alpha_sd$minus_1,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,conf_alpha$plus_1,conf_alpha_sd$plus_1,
-            lwd=2, col = VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_0 + conf_alpha_pred_sd$minus_0,
-                             (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_1 + conf_alpha_pred_sd$minus_1,
-                             (conf_alpha_pred$minus_1 - conf_alpha_pred_sd$minus_1)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
-                             (conf_alpha_pred$plus_0 - conf_alpha_pred_sd$plus_0)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
-                             (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-         pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
-  
-  par(mar=c(5,5,0,2)+.1)
-  
-  plot(alpha_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(alpha_alpha_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,alpha_alpha_pred$minus,alpha_alpha_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,alpha_alpha_pred$plus,alpha_alpha_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  plot(beta_alpha_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(beta_alpha_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,beta_alpha_pred$minus,beta_alpha_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,beta_alpha_pred$plus,beta_alpha_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  dev.off()
-  
-  tiff(paste0('trace_aggreg_beta_',m,'_learn.tiff'), width = 36, height = 36, units = 'cm', res = 300)
-  layout(matrix(c(1,2,1,3),ncol=2))
-  par(mar=c(5,5,4,2)+.1)
-  
-  plot(conf_beta$minus_0,ylim=c(.7,.9),col = BLUE, type = 'b',main=paste("Beta-Manipulated Feedback",", empirical fits,",m,"learn"),
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Confidence",cex.main=cex.title,
-       xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"),cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-  lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-  error.bar(1:length(conf_beta$minus_0),conf_beta$minus_0,conf_beta_sd$minus_0,
-            lwd=2, col = BLUE)
-  error.bar(1:length(conf_beta$plus_0),conf_beta$plus_0,conf_beta_sd$plus_0,
-            lwd=2, col = VERMILLION)
-  error.bar(1:length(conf_beta$minus_1),conf_beta$minus_1,conf_beta_sd$minus_1,
-            lwd=2, col = BLUE)
-  error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
-            lwd=2, col = VERMILLION)
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
-                             (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_1 + conf_beta_pred_sd$minus_1,
-                             (conf_beta_pred$minus_1 - conf_beta_pred_sd$minus_1)[xlen:1]),
-          border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
-                             (conf_beta_pred$plus_0 - conf_beta_pred_sd$plus_0)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
-                             (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
-          border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-  
-  par(mar=c(5,5,0,2)+.1)
-  
-  plot(alpha_beta_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(alpha_beta_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,alpha_beta_pred$minus,alpha_beta_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,alpha_beta_pred$plus,alpha_beta_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  plot(beta_beta_pred$minus,ylim=c(5,15),col = BLUE, type = 'b',main="",
-       lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",cex.main=cex.title,
-       xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-  axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-  lines(beta_beta_pred$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-  error.bar(1:xlen,beta_beta_pred$minus,beta_beta_pred_sd$minus,
-            lwd=2, col = BLUE)
-  error.bar(1:xlen,beta_beta_pred$plus,beta_beta_pred_sd$plus,
-            lwd=2, col = VERMILLION)
-  
-  dev.off()
-}
+###
+# Accuracy
+###
+par(mar=mar.rt.acc)
 
 
-par(mfrow=c(1,1))
+plot_cor_low <- with(subset(Data_beta,condition=="minus"),
+                     aggregate(cor,by=list(sub=sub,difflevel=difflevel),mean))
+plot_cor_low <- cast(plot_cor_low,sub~difflevel)
+plot_cor_low <- plot_cor_low[,diff_order] #Reorder columns to have hard -> easy
 
+plot_cor_high <- with(subset(Data_beta,condition=="plus"),
+                      aggregate(cor,by=list(sub=sub,difflevel=difflevel),mean))
+plot_cor_high <- cast(plot_cor_high,sub~difflevel)
+plot_cor_high <- plot_cor_high[,diff_order] #Reorder columns to have hard -> easy
 
-# Accuracy and RT over time -----------------------------------------------
+yrange <- c(min(colMeans(rbind(plot_cor_low,plot_cor_high))) - min(colSds(rbind(plot_cor_low,plot_cor_high)))/sqrt(Nbeta),
+            max(colMeans(rbind(plot_cor_low,plot_cor_high))) + max(colSds(rbind(plot_cor_low,plot_cor_high)))/sqrt(Nbeta))
+plot(xlab="",ylab="",colMeans(plot_cor_low),frame=F,type='n',xlim=c(.8,Ndiff+.2),
+     ylim=c(.5,1),xaxt='n',las=2)
+title(ylab="Accuracy",xlab="", line = linelab, cex.lab = cex.lab)
+axis(1,1:Ndiff,c("","",""),cex.axis=cexax)
+points(colMeans(plot_cor_low),type='b',lwd=lwdmean,col=BLUE)
+error.bar(1:Ndiff,colMeans(plot_cor_low),
+          colSds(plot_cor_low,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE)
 
-# Aggregating behavior
-count_complete <- function(dat) {
-  return(sum(complete.cases(dat)))
-}
+points(colMeans(plot_cor_high),type='b',lwd=lwdmean,col=VERMILLION)
+error.bar(1:Ndiff,colMeans(plot_cor_high),
+          colSds(plot_cor_high,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION)
 
-if (is.factor(Data$cor)) {
-  Data$cor <- as.numeric(Data$cor)-1
-}
+par(mar=mar.rt.acc)
 
-cex.legend <- 3
+###
+# RT
+###
 
-Nalpha <- length(unique(Data_alpha$sub))
-Nbeta <- length(unique(Data_beta$sub))
+plot_rt_low <- with(subset(Data_beta,condition=="minus"&cor==1),
+                    aggregate(rt,by=list(sub=sub,difflevel=difflevel),mean))
+plot_rt_low <- cast(plot_rt_low,sub~difflevel)
+plot_rt_low <- plot_rt_low[,diff_order] #Reorder columns to have hard -> easy
 
-trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=2),
-                           condition=c("minus","plus"),sub=rep(subs,each=Nphase_block*2))
+plot_rt_high <- with(subset(Data_beta,condition=="plus"&cor==1),
+                     aggregate(rt,by=list(sub=sub,difflevel=difflevel),mean))
+plot_rt_high <- cast(plot_rt_high,sub~difflevel)
+plot_rt_high <- plot_rt_high[,diff_order] #Reorder columns to have hard -> easy
 
-rt_group <- with(Data,aggregate(rt,by=list(phase_block,manip,sub,condition),mean))
-names(rt_group) <- c('phase_block','manip','sub','condition','cj')
-rt_group <- merge(rt_group,trials_phase,all=T)
-rt_group[rt_group$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
-rt_group[rt_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
+yrange <- c(min(c(colMeans(plot_rt_low),colMeans(plot_rt_high))) - max(c(colSds(plot_rt_low),colSds(plot_rt_high)))/sqrt(Nbeta),
+            max(c(colMeans(plot_rt_low),colMeans(plot_rt_high))) + max(c(colSds(plot_rt_low),colSds(plot_rt_high)))/sqrt(Nbeta))
+yrange <- c(.75,1)
+plot(xlab="",ylab="",colMeans(plot_rt_low),frame=F,type='n',xlim=c(.8,Ndiff+.2),
+     ylim=yrange,xaxt='n',las=2)
+title(ylab="Reaction time (s)",xlab="", line = linelab, cex.lab = cex.lab)
+# axis(1,1:Ndiff,c("Hard","Average","Easy"),cex.axis=cexax)
+axis(1,1:Ndiff,c("","",""),cex.axis=cexax)
+points(colMeans(plot_rt_low),type='b',lwd=lwdmean,col=BLUE)
+error.bar(1:Ndiff,colMeans(plot_rt_low),
+          colSds(plot_rt_low,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE)
 
-rt_alpha_count <- cast(subset(rt_group,manip=='alpha'),phase_block~condition,count_complete)
-rt_alpha <- cast(subset(rt_group,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-rt_alpha_sd <- cast(subset(rt_group,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-rt_alpha_sd[,2:3] <- rt_alpha_sd[,2:3]/sqrt(rt_alpha_count[,2:3])
-rt_beta <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-rt_beta_count <- cast(subset(rt_group,manip=='beta'),phase_block~condition,count_complete)
-rt_beta_sd <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-rt_beta_sd[,2:3] <- rt_beta_sd[,2:3]/sqrt(rt_beta_count[,2:3])
+points(colMeans(plot_rt_high),type='b',lwd=lwdmean,col=VERMILLION)
+error.bar(1:Ndiff,colMeans(plot_rt_high),
+          colSds(plot_rt_high,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION)
+legend("top",border=F,legend=c("Low","High"),pch=16,horiz=T,
+       col=c(BLUE,VERMILLION),bty="n",
+       cex=cexleg,title = "Feedback condition")
 
-cor_group <- with(Data,aggregate(cor,by=list(phase_block,manip,sub,condition),mean))
-names(cor_group) <- c('phase_block','manip','sub','condition','cj')
-cor_group <- merge(cor_group,trials_phase,all=T)
-cor_group[cor_group$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
-cor_group[cor_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
+###
+# Confidence
+###
+par(mar=mar.cj)
 
-cor_alpha_count <- cast(subset(cor_group,manip=='alpha'),phase_block~condition,count_complete)
-cor_alpha <- cast(subset(cor_group,manip=='alpha'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-cor_alpha_sd <- cast(subset(cor_group,manip=='alpha'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-cor_alpha_sd[,2:3] <- cor_alpha_sd[,2:3]/sqrt(cor_alpha_count[,2:3])
-cor_beta <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-cor_beta_count <- cast(subset(cor_group,manip=='beta'),phase_block~condition,count_complete)
-cor_beta_sd <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-cor_beta_sd[,2:3] <- cor_beta_sd[,2:3]/sqrt(cor_beta_count[,2:3])
+plot_cj_low <- with(subset(Data_beta,condition=="minus"),
+                    aggregate(cj_integer,by=list(sub=sub,difflevel=difflevel,cor=cor),mean))
+plot_cj_low_cor <- cast(subset(plot_cj_low,cor==1),sub~difflevel)
+plot_cj_low_err <- cast(subset(plot_cj_low,cor==0),sub~difflevel)
+plot_cj_low_cor <- plot_cj_low_cor[,diff_order] #Reorder columns to have hard -> easy
+plot_cj_low_err <- plot_cj_low_err[,diff_order] #Reorder columns to have hard -> easy
 
-xlen <- nrow(rt_alpha)
-go_to("plots")
-go_to("paper")
-tiff('trace_rt_cor_.tiff', width = 36, height = 36, units = 'cm', res = 600)
-layout(matrix(c(1,2,3,4),ncol=2,byrow = F))
+plot_cj_high <- with(subset(Data_beta,condition=="plus"),
+                     aggregate(cj_integer,by=list(sub=sub,difflevel=difflevel,cor=cor),mean))
+plot_cj_high_cor <- cast(subset(plot_cj_high,cor==1),sub~difflevel)
+plot_cj_high_err <- cast(subset(plot_cj_high,cor==0),sub~difflevel)
+plot_cj_high_cor <- plot_cj_high_cor[,diff_order] #Reorder columns to have hard -> easy
+plot_cj_high_err <- plot_cj_high_err[,diff_order] #Reorder columns to have hard -> easy
 
-plot(rt_alpha$minus,ylim=c(.8,1.2),col = BLUE, type = 'b',main="Alpha-Manipulated Feedback",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.axis=cex.axis*.66/.83)
-axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-title(ylab = "Reaction time (s)", xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"), 
-      line = 2.5,cex.lab=cex.lab*.66/.83)
-lines(rt_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-error.bar(1:xlen,rt_alpha$minus,rt_alpha_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:xlen,rt_alpha$plus,rt_alpha_sd$plus,
-          lwd=2, col = VERMILLION)
-# polygon(c(1:xlen,xlen:1),c(rt_alpha_pred$minus + rt_alpha_pred_sd$minus,
-#                            (rt_alpha_pred$minus - rt_alpha_pred_sd$minus)[xlen:1]),
-#         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-# polygon(c(1:xlen,xlen:1),c(rt_alpha_pred$plus + rt_alpha_pred_sd$plus,
-#                            (rt_alpha_pred$plus - rt_alpha_pred_sd$plus)[xlen:1]),
-#         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
+yrange <- c(min(colMeans(rbind(plot_cj_low_err,plot_cj_high_err),na.rm = T)) - min(colSds(rbind(plot_cj_low_err,plot_cj_high_err),na.rm = T))/sqrt(Nbeta),
+            max(colMeans(rbind(plot_cj_low_cor,plot_cj_high_cor),na.rm = T)) + max(colSds(rbind(plot_cj_low_cor,plot_cj_high_cor),na.rm = T))/sqrt(Nbeta))
+plot(xlab="",ylab="",colMeans(plot_cj_low_cor),frame=F,type='n',xlim=c(.8,Ndiff+.2),
+     ylim=yrange,xaxt='n',las=2)
+title(ylab="Confidence",xlab="Trial difficulty", line = linelab, cex.lab = cex.lab)
+axis(1,1:Ndiff,c("Hard","Average","Easy"),cex.axis=cexax)
+# Incorrect trials
+points(colMeans(plot_cj_low_err,na.rm=T),type='b',lwd=lwdmean,col=BLUE,lty=2)
+error.bar(1:Ndiff,colMeans(plot_cj_low_err),
+          colSds(plot_cj_low_err,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE,lty=1)
+points(colMeans(plot_cj_high_err,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=2)
+error.bar(1:Ndiff,colMeans(plot_cj_high_err,na.rm=T),
+          colSds(plot_cj_high_err,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
+# Correct trials
+points(colMeans(plot_cj_low_cor,na.rm=T),type='b',lwd=lwdmean,col=BLUE,lty=1)
+error.bar(1:Ndiff,colMeans(plot_cj_low_cor),
+          colSds(plot_cj_low_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE,lty=1)
+points(colMeans(plot_cj_high_cor,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=1)
+error.bar(1:Ndiff,colMeans(plot_cj_high_cor,na.rm=T),
+          colSds(plot_cj_high_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
+legend("right",border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
+       col="black",bty="n",seg.len=1.5,
+       cex=cexleg,title = "Trial accuracy")
 
-plot(cor_alpha$minus,ylim=c(.5,1),col = BLUE, type = 'b',main="",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-title(ylab = "Accuracy", xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"), 
-      line = 2.5,cex.lab=cex.lab*.66/.83)
-lines(cor_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-error.bar(1:xlen,cor_alpha$minus,cor_alpha_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:xlen,cor_alpha$plus,cor_alpha_sd$plus,
-          lwd=2, col = VERMILLION)
-# polygon(c(1:xlen,xlen:1),c(cor_alpha_pred$minus + cor_alpha_pred_sd$minus,
-#                            (cor_alpha_pred$minus - cor_alpha_pred_sd$minus)[xlen:1]),
-#         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-# polygon(c(1:xlen,xlen:1),c(cor_alpha_pred$plus + cor_alpha_pred_sd$plus,
-#                            (cor_alpha_pred$plus - cor_alpha_pred_sd$plus)[xlen:1]),
-#         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-
-plot(rt_beta$minus,ylim=c(.8,1.2),col = BLUE, type = 'b',main="Beta-Manipulated Feedback",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-title(ylab = "Reaction time (s)", xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"), 
-      line = 2.5,cex.lab=cex.lab*.66/.83)
-lines(rt_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-error.bar(1:xlen,rt_beta$minus,rt_beta_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:xlen,rt_beta$plus,rt_beta_sd$plus,
-          lwd=2, col = VERMILLION)
-# polygon(c(1:xlen,xlen:1),c(rt_beta_pred$minus + rt_beta_pred_sd$minus,
-#                            (rt_beta_pred$minus - rt_beta_pred_sd$minus)[xlen:1]),
-#         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-# polygon(c(1:xlen,xlen:1),c(rt_beta_pred$plus + rt_beta_pred_sd$plus,
-#                            (rt_beta_pred$plus - rt_beta_pred_sd$plus)[xlen:1]),
-#         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend("top",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T, bty = 'n',cex = cex.legend*.66/.83)
-
-plot(cor_alpha$minus,ylim=c(.5,1),col = BLUE, type = 'b',main="",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.lab=cex.lab*.66/.83,cex.axis=cex.axis*.66/.83)
-axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis*.66/.83)
-title(ylab = "Accuracy", xlab = paste("Consecutive groups of",Nphase_trial/Nphase_block,"trials"), 
-      line = 2.5,cex.lab=cex.lab*.66/.83)
-lines(cor_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-error.bar(1:xlen,cor_alpha$minus,cor_alpha_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:xlen,cor_alpha$plus,cor_alpha_sd$plus,
-          lwd=2, col = VERMILLION)
-# polygon(c(1:xlen,xlen:1),c(cor_alpha_pred$minus + cor_alpha_pred_sd$minus,
-#                            (cor_alpha_pred$minus - cor_alpha_pred_sd$minus)[xlen:1]),
-#         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-# polygon(c(1:xlen,xlen:1),c(cor_alpha_pred$plus + cor_alpha_pred_sd$plus,
-#                            (cor_alpha_pred$plus - cor_alpha_pred_sd$plus)[xlen:1]),
-#         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-dev.off()
-
-# Parameter trace aggregated over switches ----------------------------------------------
-if (stat_tests) {
-  # Analyze alpha experiment
-  m.alpha.a <- lmer(data = Data_alpha, alpha ~ phase_block*condition + (phase_block+condition|sub), REML = F,
-                    control = lmerControl(optimizer = "bobyqa"))
-  anova(m.alpha.a)
-  emm <- emmeans(m.alpha.a, ~ condition | phase_block)
-  pairs(emm)
-  emm <- emmeans(m.alpha.a, ~ phase_block | condition)
-  pairs(emm)
-  
-  m.alpha.b <- lmer(data = Data_alpha, beta ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                    control = lmerControl(optimizer = "bobyqa"))
-  anova(m.alpha.b)
-  emm <- emmeans(m.alpha.b, ~ phase_block | condition)
-  pairs(emm)
-  emm <- emmeans(m.alpha.b, ~ condition | phase_block)
-  pairs(emm)
-  
-  m.alpha.b <- lmer(data = Data_alpha, beta_beta_learn ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                    control = lmerControl(optimizer = "bobyqa"))
-  anova(m.alpha.b)
-  emm <- emmeans(m.alpha.b, ~ condition)
-  pairs(emm)
-  
-  # Do the same with beta experiment
-  m.beta.a <- lmer(data = Data_beta, alpha ~ phase_block*condition + (phase_block+condition|sub), REML = F,
-                   control = lmerControl(optimizer = "bobyqa"))
-  anova(m.beta.a)
-  emm <- emmeans(m.beta.a, ~ condition | phase_block)
-  pairs(emm)
-  emm <- emmeans(m.beta.a, ~ phase_block | condition)
-  pairs(emm)
-  
-  m.beta.b <- lmer(data = Data_beta, beta ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                   control = lmerControl(optimizer = "bobyqa"))
-  anova(m.beta.b)
-  emm <- emmeans(m.beta.b, ~ condition | phase_block)
-  pairs(emm)
-  emm <- emmeans(m.beta.b, ~ phase_block | condition)
-  pairs(emm)
-  
-  m.beta.b <- lmer(data = Data_beta, beta_beta_learn ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                   control = lmerControl(optimizer = "bobyqa"))
-  anova(m.beta.b)
-  emm <- emmeans(m.beta.b, ~ condition | phase_block)
-  pairs(emm)
-  emm <- emmeans(m.beta.b, ~ phase_block | condition)
-  pairs(emm)
-  
-  Data_alpha$phase_block <- as.numeric(Data_alpha$phase_block)
-  Data_beta$phase_block <- as.numeric(Data_beta$phase_block)
-  
-  m.alpha.b.cont <- lmer(data = Data_alpha, beta_beta_learn ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                         control = lmerControl(optimizer = "bobyqa"))
-  anova(m.alpha.b.cont)
-  anova(m.alpha.b)
-  m.beta.b.cont <- lmer(data = Data_beta, beta_beta_learn ~ phase_block*condition + (condition + phase_block|sub), REML = F,
-                        control = lmerControl(optimizer = "bobyqa"))
-  anova(m.beta.b.cont)
-  emm <- emmeans(m.beta.b.cont, ~ phase_block * condition)
-  pairs(emm)
-  contrasts <- contrast(emm, interaction = "pairwise")
-  summary(contrasts)
-  summary(m.beta.b)
-  
-}
-
-# Plot all this
-tiff('param_trace_aggreg.tiff', width = 36, height = 14, units = 'cm', res = 300)
-layout(matrix(c(1,3,5,2,4,6),ncol=2),heights = c(1,6.5,6.5))
-
-par(mar=c(0,0,0,0))
-plot.new()
-title(cex.main=cex.title,line=title_line,main = expression(paste(alpha,"-Manipulated Feedback")))
-plot.new()
-title(cex.main=cex.title,line=title_line,main = expression(paste(beta,"-Manipulated Feedback")))
-par(mar=c(4,5,0,1.1)+.1)
-
-Nalpha <- length(unique(Data_alpha$sub))
-Nbeta <- length(unique(Data_beta$sub))
-conf_group <- with(Data,aggregate(alpha,by=list(phase_block,manip,condition),mean))
-conf_group_sd <- with(Data,aggregate(alpha,by=list(phase_block,manip,condition),sd))
-names(conf_group) <- c('phase_block','manip','condition','cj')
-names(conf_group_sd) <- c('phase_block','manip','condition','cj')
-
-conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition)
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition)
-conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
-conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
-conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition)
-conf_beta_sd <- subset(conf_group_sd,manip=='beta')
-conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
-conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
-
-plot(conf_alpha$minus,ylim=c(5,13),main=NULL,col = BLUE, type = 'b',
-     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",
-     xlab = "Trials",cex.lab=cex.lab,cex.axis=cex.axis)
-axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
-lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
-error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
-          lwd=2, col = VERMILLION)
-legend("bottom",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T,cex=cex.legend, bty = 'n')
-
-
-plot(conf_beta$minus,ylim=c(5,13),main=NULL,col = BLUE, type = 'b',
-     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Alpha",
-     xlab = "Trials",cex.lab=cex.lab,cex.axis=cex.axis)
-axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
-lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
-error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
-          lwd=2, col = VERMILLION)
-
-Nalpha <- length(unique(Data_alpha$sub))
-Nbeta <- length(unique(Data_beta$sub))
-conf_group <- with(Data,aggregate(beta,by=list(phase_block,manip,condition),mean))
-conf_group_sd <- with(Data,aggregate(beta,by=list(phase_block,manip,condition),sd))
-names(conf_group) <- c('phase_block','manip','condition','cj')
-names(conf_group_sd) <- c('phase_block','manip','condition','cj')
-conf_group$cj <- conf_group$cj/10
-conf_group_sd$cj <- conf_group_sd$cj/10
-
-conf_alpha <- cast(subset(conf_group,manip=='alpha'),phase_block~condition)
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition)
-conf_alpha_sd <- subset(conf_group_sd,manip=='alpha')
-conf_alpha_sd$cj <- conf_alpha_sd$cj/sqrt(Nalpha)
-conf_alpha_sd <- cast(conf_alpha_sd, phase_block ~ condition)
-conf_beta_sd <- subset(conf_group_sd,manip=='beta')
-conf_beta_sd$cj <- conf_beta_sd$cj/sqrt(Nbeta)
-conf_beta_sd <- cast(conf_beta_sd, phase_block ~ condition)
-
-plot(conf_alpha$minus,ylim=c(1.5,2.2),main=NULL,col = BLUE, type = 'b',
-     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",
-     xlab = "Trials",cex.axis=cex.axis,cex.lab=cex.lab)
-axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
-lines(conf_alpha$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
-error.bar(1:length(conf_alpha$minus),conf_alpha$minus,conf_alpha_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_alpha$plus),conf_alpha$plus,conf_alpha_sd$plus,
-          lwd=2, col = VERMILLION)
-legend("bottom",legend = c('High','Low'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16),horiz = T,cex=cex.legend, bty = 'n')
-
-
-plot(conf_beta$minus,ylim=c(1.5,2.2),main=NULL,col = BLUE, type = 'b',
-     lty = 1, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "Beta",
-     xlab = "Trials",cex.axis=cex.axis,cex.lab=cex.lab)
-axis(1, at = 1:4, labels = c("[1:32]","[33:63]","[64:94]","[95:126]"),cex.axis=cex.axis)
-lines(conf_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2)
-error.bar(1:length(conf_beta$minus),conf_beta$minus,conf_beta_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_beta$plus),conf_beta$plus,conf_beta_sd$plus,
-          lwd=2, col = VERMILLION)
-par(mfrow=c(1,1))
-dev.off()
-# Dynamic confidence plot according to group --------------------------------------------------------
+# Plot aggregated traces  -------------------------------------------------
 m <- 'both'
 
-conf_beta <- cast(subset(conf_group,manip=='beta' & sub%in%sub_nolearn_best),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_beta_count <- cast(subset(conf_group,manip=='beta' & sub%in%sub_nolearn_best),phase_block~condition+cor,count_complete)
-conf_beta_sd <- cast(subset(conf_group,manip=='beta' & sub%in%sub_nolearn_best),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_beta_sd[,2:5] <- conf_beta_sd[,2:5]/sqrt(conf_beta_count[,2:5])
-
-cj_pred <- with(subset(anal_sim,model==m & sub%in%sub_nolearn_best),aggregate(cj,by=list(trial,sub),mean))
+cj_pred <- with(subset(anal_sim,model==m),aggregate(cj_scaled,by=list(trial,sub),mean))
 names(cj_pred) <- c("trial","sub","cj")
 cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
 
@@ -1460,40 +772,96 @@ conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~conditi
 conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
 conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
 
-cex_size <- function(size,cex.layout) {
-  return(size/(par()$ps*cex.layout))
+
+if (is.factor(Data$cor)) {
+  Data$cor <- as.numeric(Data$cor)-1
 }
-### Adjust sizes and positions
-cex.layout <- 1
-# Text
-cex.legend <- cex_size(14,cex.layout)
-cex.axis <- cex_size(14,cex.layout) 
-cex.lab <- cex_size(18,cex.layout)
-line.width <- 1
-cex.pt <- .8
 
 
-jpeg("conf_beta_bothlearn_nolearnsub.jpeg",width=13.5,height=10,units="cm",res=300)
-par(mar=c(3,3,0,0)+.1)
-plot(conf_beta$minus_0,ylim=c(.7,.915),col = BLUE, type = 'l',main="",
-     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
-title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=2),
+                           condition=c("minus","plus"),sub=rep(subs,each=Nphase_block*2))
+
+rt_group <- with(Data,aggregate(rt,by=list(phase_block,manip,sub,condition),mean))
+names(rt_group) <- c('phase_block','manip','sub','condition','cj')
+rt_group <- merge(rt_group,trials_phase,all=T)
+rt_group[rt_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
+
+rt_beta <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
+rt_beta_count <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate=length)
+rt_beta_sd <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
+rt_beta_sd[,2:3] <- rt_beta_sd[,2:3]/sqrt(rt_beta_count[,2:3])
+
+cor_group <- with(Data,aggregate(cor,by=list(phase_block,manip,sub,condition),mean))
+names(cor_group) <- c('phase_block','manip','sub','condition','cj')
+cor_group <- merge(cor_group,trials_phase,all=T)
+cor_group[cor_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
+
+
+cor_beta <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
+cor_beta_count <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate=length)
+cor_beta_sd <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
+cor_beta_sd[,2:3] <- cor_beta_sd[,2:3]/sqrt(cor_beta_count[,2:3])
+
+conf_group <- with(Data,aggregate(cj_integer,by=list(phase_block,manip,sub,condition,cor),mean))
+names(conf_group) <- c('phase_block','manip','sub','condition','cor','cj')
+conf_group <- merge(conf_group,trials_phase,all=T)
+conf_group[conf_group$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
+conf_group[conf_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
+conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,length)
+conf_beta_sd <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_sd[,2:5] <- conf_beta_sd[,2:5]/sqrt(conf_beta_count[,2:5])
+
+xlen <- dim(conf_beta)[1]
+
+
+par(mar=mar.rt.acc)
+
+plot(cor_beta$minus,ylim=c(.5,1),col = BLUE, type = 'b',main="",
+     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
+     xlab = "",cex.lab=cex.lab,cex.axis=cex.axis,las=2)
+axis(1, at = 1:Nphase_block, labels = F,cex.axis=cex.axis)
+title(ylab = "Accuracy", xlab = "", 
+      line = linelab,cex.lab=cex.lab)
+lines(cor_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
+error.bar(1:xlen,cor_beta$minus,cor_beta_sd$minus,
+          lwd=2, col = BLUE)
+error.bar(1:xlen,cor_beta$plus,cor_beta_sd$plus,
+          lwd=2, col = VERMILLION)
+
+par(mar=mar.rt.acc)
+
+plot(rt_beta$minus,ylim=yrange_rt,col = BLUE, type = 'b',main="",
+     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
+     xlab = "",cex.lab=cex.lab,cex.axis=cex.axis,las=2)
+axis(1, at = 1:Nphase_block, labels = F,cex.axis=cex.axis)
+title(ylab = "Reaction time (s)", xlab = "", 
+      line = linelab,cex.lab=cex.lab)
+lines(rt_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
+error.bar(1:xlen,rt_beta$minus,rt_beta_sd$minus,
+          lwd=2, col = BLUE)
+error.bar(1:xlen,rt_beta$plus,rt_beta_sd$plus,
+          lwd=2, col = VERMILLION)
+
+par(mar=mar.cj)
+
+
+plot(conf_beta$minus_0,ylim=yrange_cj,col = BLUE, type = 'b',main="",
+     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
+     xlab = "",cex.lab=cex.lab,cex.axis=cex.axis,las=2)
+title(ylab="Confidence",xlab= paste("Within phase groups of",Nphase_trial/Nphase_block,"trials"), line = linelab, cex.lab = cex.lab)
 axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
-lines(conf_beta$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
-lines(conf_beta$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
-lines(conf_beta$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
-points(conf_beta$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
-points(conf_beta$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
-points(conf_beta$minus_1, pch = 16, cex = cex.pt, col = BLUE)
-points(conf_beta$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
+lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
+lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
 error.bar(1:length(conf_beta$minus_0),conf_beta$minus_0,conf_beta_sd$minus_0,
-          lwd = line.width, col = BLUE)
+          lwd=2, col = BLUE)
 error.bar(1:length(conf_beta$plus_0),conf_beta$plus_0,conf_beta_sd$plus_0,
-          lwd = line.width, col = VERMILLION)
+          lwd=2, col = VERMILLION)
 error.bar(1:length(conf_beta$minus_1),conf_beta$minus_1,conf_beta_sd$minus_1,
-          lwd = line.width, col = BLUE)
+          lwd=2, col = BLUE)
 error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
-          lwd = line.width, col = VERMILLION)
+          lwd=2, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
                            (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
         border=F,col=rgb(0,114,178,51,maxColorValue = 255))
@@ -1506,97 +874,13 @@ polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
 polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
                            (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
         border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(0.5,.93,legend = c('High feedback','Low feedback'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16), bty = 'n',cex = cex.legend)
-legend(12,.93,legend=c("Correct trials","Error trials"),
-       title = NULL,lty=c(1,2),bty = "n",inset=0,
-       cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+legend("top",legend = c('Behavior','Model'),lty = c(1,NA),col = c("black",rgb(0,0,0,.5)),
+       border=NA,pch = c(16,15),horiz = T, bty = 'n',cex = cexleg,pt.cex=c(1,2))
 
 dev.off()
-
-
-# Dynamic confidence plot according to group 2 --------------------------------------------------------
-m <- 'both'
-
-conf_alpha <- cast(subset(conf_group,manip=='alpha' & sub%in%sub_learn_best),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_alpha_count <- cast(subset(conf_group,manip=='alpha' & sub%in%sub_learn_best),phase_block~condition+cor,count_complete)
-conf_alpha_sd <- cast(subset(conf_group,manip=='alpha' & sub%in%sub_learn_best),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_alpha_sd[,2:5] <- conf_alpha_sd[,2:5]/sqrt(conf_alpha_count[,2:5])
-
-cj_pred <- with(subset(anal_sim,model==m & sub%in%sub_learn_best),aggregate(cj,by=list(trial,sub),mean))
-names(cj_pred) <- c("trial","sub","cj")
-cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-
-conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
-names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
-
-conf_alpha_pred_count <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor, fun.aggregate = length)
-conf_alpha_pred <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_alpha_pred_sd <- cast(subset(conf_group_pred,manip=='alpha'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_alpha_pred_sd[,2:5] <- conf_alpha_pred_sd[,2:5]/sqrt(conf_alpha_pred_count[,2:5])
-
-cex_size <- function(size,cex.layout) {
-  return(size/(par()$ps*cex.layout))
-}
-### Adjust sizes and positions
-cex.layout <- 1
-# Text
-cex.legend <- cex_size(14,cex.layout)
-cex.axis <- cex_size(14,cex.layout) 
-cex.lab <- cex_size(18,cex.layout)
-line.width <- 1
-cex.pt <- .8
-
-
-jpeg("conf_alpha_bothlearn_learnsub.jpeg",width=13.5,height=10,units="cm",res=300)
-par(mar=c(3,3,0,0)+.1)
-plot(conf_alpha$minus_0,ylim=c(.7,.915),col = BLUE, type = 'l',main="",
-     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
-title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
-axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
-lines(conf_alpha$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
-lines(conf_alpha$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
-lines(conf_alpha$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
-points(conf_alpha$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
-points(conf_alpha$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
-points(conf_alpha$minus_1, pch = 16, cex = cex.pt, col = BLUE)
-points(conf_alpha$minus_0, pch = 16, cex = cex.pt, col = BLUE)
-error.bar(1:length(conf_alpha$minus_0),conf_alpha$minus_0,conf_alpha_sd$minus_0,
-          lwd = line.width, col = BLUE)
-error.bar(1:length(conf_alpha$plus_0),conf_alpha$plus_0,conf_alpha_sd$plus_0,
-          lwd = line.width, col = VERMILLION)
-error.bar(1:length(conf_alpha$minus_1),conf_alpha$minus_1,conf_alpha_sd$minus_1,
-          lwd = line.width, col = BLUE)
-error.bar(1:length(conf_alpha$plus_1),conf_alpha$plus_1,conf_alpha_sd$plus_1,
-          lwd = line.width, col = VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_0 + conf_alpha_pred_sd$minus_0,
-                           (conf_alpha_pred$minus_0 - conf_alpha_pred_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$minus_1 + conf_alpha_pred_sd$minus_1,
-                           (conf_alpha_pred$minus_1 - conf_alpha_pred_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_0 + conf_alpha_pred_sd$plus_0,
-                           (conf_alpha_pred$plus_0 - conf_alpha_pred_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-polygon(c(1:xlen,xlen:1),c(conf_alpha_pred$plus_1 + conf_alpha_pred_sd$plus_1,
-                           (conf_alpha_pred$plus_1 - conf_alpha_pred_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(0.5,.93,legend = c('High feedback','Low feedback'),lty = c(1,1),col = c(VERMILLION,BLUE),
-       pch = c(16,16), bty = 'n',cex = cex.legend)
-legend(12,.93,legend=c("Correct trials","Error trials"),
-       title = NULL,lty=c(1,2),bty = "n",inset=0,
-       cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
-
-dev.off()
-
-
+par(mar=c(5,4,4,2)+.1)
 # Reanalyze confidence according to group -----------------------------------------------------------
 if (stat_tests) {
-  Data$group <- "static"
-  Data[Data$sub %in% sub_learn_best,]$group <- "dynamic"
-  Data_alpha <- subset(Data,manip=="alpha")
-  Data_beta <- subset(Data,manip=="beta")
-  
   control <- lmerControl(optimizer = "bobyqa")
   glmercontrol <- glmerControl(optimizer = "bobyqa")
   
@@ -1657,6 +941,238 @@ if (stat_tests) {
                                            data = Data_beta, REML = F,control = control)
   anova(cj.cond.acc.interaction.beta.bic)
 }
+
+
+# Dynamic confidence plot according to group --------------------------------------------------------
+trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=2),
+                           condition=c("minus","plus"),sub=rep(subs[subs%in%Data_beta$sub],each=Nphase_block*2))
+
+conf_group <- with(Data_beta,aggregate(cj_integer,by=list(phase_block,sub,condition,cor,group),mean))
+names(conf_group) <- c('phase_block','sub','condition','cor','group','cj')
+conf_group <- merge(conf_group,trials_phase,all=T)
+conf_static <- subset(conf_group,group=="static")
+conf_dynamic <- subset(conf_group,group=="dynamic")
+
+conf_beta_static <- cast(conf_static,phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_static_count <- cast(conf_static,phase_block~condition+cor,length)
+conf_beta_static_sd <- cast(conf_static,phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_static_sd[,2:5] <- conf_beta_static_sd[,2:5]/sqrt(conf_beta_static_count[,2:5])
+
+conf_beta_dynamic <- cast(conf_dynamic,phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_dynamic_count <- cast(conf_dynamic,phase_block~condition+cor,length)
+conf_beta_dynamic_sd <- cast(conf_dynamic,phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_dynamic_sd[,2:5] <- conf_beta_dynamic_sd[,2:5]/sqrt(conf_beta_dynamic_count[,2:5])
+
+
+cj_pred_static_nolearn <- with(subset(anal_sim,model=="no" & sub%in%sub_nolearn_best),aggregate(cj_scaled,by=list(trial,sub),mean))
+names(cj_pred_static_nolearn) <- c("trial","sub","cj")
+cj_pred_static_nolearn <- merge(cj_pred_static_nolearn,Data_beta[,c("trial","sub","phase_block","condition","cor")])
+
+conf_group_pred <- with(cj_pred_static_nolearn,aggregate(cj,by=list(phase_block,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','sub','condition','cor','cj')
+
+conf_beta_static_pred_nolearn_count <- cast(conf_group_pred,phase_block~condition+cor, fun.aggregate = length)
+conf_beta_static_pred_nolearn <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_static_pred_nolearn_sd <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_static_pred_nolearn_sd[,2:5] <- conf_beta_static_pred_nolearn_sd[,2:5]/sqrt(conf_beta_static_pred_nolearn_count[,2:5])
+
+cj_pred_dynamic_nolearn <- with(subset(anal_sim,model=="no" & sub%in%sub_learn_best),aggregate(cj_scaled,by=list(trial,sub),mean))
+names(cj_pred_dynamic_nolearn) <- c("trial","sub","cj")
+cj_pred_dynamic_nolearn <- merge(cj_pred_dynamic_nolearn,Data_beta[,c("trial","sub","phase_block","condition","cor")])
+
+conf_group_pred <- with(cj_pred_dynamic_nolearn,aggregate(cj,by=list(phase_block,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','sub','condition','cor','cj')
+
+conf_beta_dynamic_pred_nolearn_count <- cast(conf_group_pred,phase_block~condition+cor, fun.aggregate = length)
+conf_beta_dynamic_pred_nolearn <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_dynamic_pred_nolearn_sd <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_dynamic_pred_nolearn_sd[,2:5] <- conf_beta_dynamic_pred_nolearn_sd[,2:5]/sqrt(conf_beta_dynamic_pred_nolearn_count[,2:5])
+
+
+cj_pred_static_learn <- with(subset(anal_sim,model=="both" & sub%in%sub_nolearn_best),aggregate(cj_scaled,by=list(trial,sub),mean))
+names(cj_pred_static_learn) <- c("trial","sub","cj")
+cj_pred_static_learn <- merge(cj_pred_static_learn,Data_beta[,c("trial","sub","phase_block","condition","cor")])
+
+conf_group_pred <- with(cj_pred_static_learn,aggregate(cj,by=list(phase_block,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','sub','condition','cor','cj')
+
+conf_beta_static_pred_learn_count <- cast(conf_group_pred,phase_block~condition+cor, fun.aggregate = length)
+conf_beta_static_pred_learn <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_static_pred_learn_sd <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_static_pred_learn_sd[,2:5] <- conf_beta_static_pred_learn_sd[,2:5]/sqrt(conf_beta_static_pred_learn_count[,2:5])
+
+
+cj_pred_dynamic_learn <- with(subset(anal_sim,model=="both" & sub%in%sub_learn_best),aggregate(cj_scaled,by=list(trial,sub),mean))
+names(cj_pred_dynamic_learn) <- c("trial","sub","cj")
+cj_pred_dynamic_learn <- merge(cj_pred_dynamic_learn,Data_beta[,c("trial","sub","phase_block","condition","cor")])
+
+conf_group_pred <- with(cj_pred_dynamic_learn,aggregate(cj,by=list(phase_block,sub,condition,cor),mean))
+names(conf_group_pred) <- c('phase_block','sub','condition','cor','cj')
+
+conf_beta_dynamic_pred_learn_count <- cast(conf_group_pred,phase_block~condition+cor, fun.aggregate = length)
+conf_beta_dynamic_pred_learn <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
+conf_beta_dynamic_pred_learn_sd <- cast(conf_group_pred,phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
+conf_beta_dynamic_pred_learn_sd[,2:5] <- conf_beta_dynamic_pred_learn_sd[,2:5]/sqrt(conf_beta_dynamic_pred_learn_count[,2:5])
+
+cex_size <- function(size,cex.layout) {
+  return(size/(par()$ps*cex.layout))
+}
+### Adjust sizes and positions
+cex.layout <- .66
+# Text
+cex.legend <- cex_size(10,cex.layout)
+cex.axis <- cex_size(10,cex.layout) 
+cex.lab <- cex_size(12,cex.layout)
+line.width <- 1
+cex.pt <- .8
+yrange <- c(4,5.5)
+
+xlen <- dim(conf_beta_static)[1]
+
+jpeg("conf_beta_group.jpeg",width=24,height=18,units="cm",res=600)
+par(mfrow=c(2,2))
+par(mar=c(3,3,0,0)+.1)
+
+# dynamic group, learn model
+plot(conf_beta_dynamic$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
+     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
+title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
+lines(conf_beta_dynamic$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
+lines(conf_beta_dynamic$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
+lines(conf_beta_dynamic$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
+points(conf_beta_dynamic$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_dynamic$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_dynamic$minus_1, pch = 16, cex = cex.pt, col = BLUE)
+points(conf_beta_dynamic$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+error.bar(1:length(conf_beta_dynamic$minus_0),conf_beta_dynamic$minus_0,conf_beta_dynamic_sd$minus_0,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_dynamic$plus_0),conf_beta_dynamic$plus_0,conf_beta_dynamic_sd$plus_0,
+          lwd = line.width, col = VERMILLION)
+error.bar(1:length(conf_beta_dynamic$minus_1),conf_beta_dynamic$minus_1,conf_beta_dynamic_sd$minus_1,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_dynamic$plus_1),conf_beta_dynamic$plus_1,conf_beta_dynamic_sd$plus_1,
+          lwd = line.width, col = VERMILLION)
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$minus_0 + conf_beta_dynamic_pred_learn_sd$minus_0,
+                           (conf_beta_dynamic_pred_learn$minus_0 - conf_beta_dynamic_pred_learn_sd$minus_0)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$minus_1 + conf_beta_dynamic_pred_learn_sd$minus_1,
+                           (conf_beta_dynamic_pred_learn$minus_1 - conf_beta_dynamic_pred_learn_sd$minus_1)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$plus_0 + conf_beta_dynamic_pred_learn_sd$plus_0,
+                           (conf_beta_dynamic_pred_learn$plus_0 - conf_beta_dynamic_pred_learn_sd$plus_0)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$plus_1 + conf_beta_dynamic_pred_learn_sd$plus_1,
+                           (conf_beta_dynamic_pred_learn$plus_1 - conf_beta_dynamic_pred_learn_sd$plus_1)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+legend(0.5,.93*6,legend = c('High feedback','Low feedback'),lty = c(1,1),col = c(VERMILLION,BLUE),
+       pch = c(16,16), bty = 'n',cex = cex.legend)
+legend(12,.93*6,legend=c("Correct trials","Error trials"),
+       title = NULL,lty=c(1,2),bty = "n",inset=0,
+       cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
+
+# dynamic group, no learn model
+plot(conf_beta_dynamic$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
+     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
+title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
+lines(conf_beta_dynamic$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
+lines(conf_beta_dynamic$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
+lines(conf_beta_dynamic$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
+points(conf_beta_dynamic$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_dynamic$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_dynamic$minus_1, pch = 16, cex = cex.pt, col = BLUE)
+points(conf_beta_dynamic$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+error.bar(1:length(conf_beta_dynamic$minus_0),conf_beta_dynamic$minus_0,conf_beta_dynamic_sd$minus_0,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_dynamic$plus_0),conf_beta_dynamic$plus_0,conf_beta_dynamic_sd$plus_0,
+          lwd = line.width, col = VERMILLION)
+error.bar(1:length(conf_beta_dynamic$minus_1),conf_beta_dynamic$minus_1,conf_beta_dynamic_sd$minus_1,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_dynamic$plus_1),conf_beta_dynamic$plus_1,conf_beta_dynamic_sd$plus_1,
+          lwd = line.width, col = VERMILLION)
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$minus_0 + conf_beta_dynamic_pred_nolearn_sd$minus_0,
+                           (conf_beta_dynamic_pred_nolearn$minus_0 - conf_beta_dynamic_pred_nolearn_sd$minus_0)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$minus_1 + conf_beta_dynamic_pred_nolearn_sd$minus_1,
+                           (conf_beta_dynamic_pred_nolearn$minus_1 - conf_beta_dynamic_pred_nolearn_sd$minus_1)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$plus_0 + conf_beta_dynamic_pred_nolearn_sd$plus_0,
+                           (conf_beta_dynamic_pred_nolearn$plus_0 - conf_beta_dynamic_pred_nolearn_sd$plus_0)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$plus_1 + conf_beta_dynamic_pred_nolearn_sd$plus_1,
+                           (conf_beta_dynamic_pred_nolearn$plus_1 - conf_beta_dynamic_pred_nolearn_sd$plus_1)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+legend("top",legend = c('Behavior','Model'),lty = c(1,NA),col = c("black",rgb(0,0,0,.5)),
+       border=NA,pch = c(16,15),horiz = T, bty = 'n',cex = cex.legend,pt.cex=c(1,2))
+
+# Static group, learn model
+plot(conf_beta_static$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
+     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
+title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
+lines(conf_beta_static$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
+lines(conf_beta_static$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
+lines(conf_beta_static$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
+points(conf_beta_static$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_static$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_static$minus_1, pch = 16, cex = cex.pt, col = BLUE)
+points(conf_beta_static$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+error.bar(1:length(conf_beta_static$minus_0),conf_beta_static$minus_0,conf_beta_static_sd$minus_0,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_static$plus_0),conf_beta_static$plus_0,conf_beta_static_sd$plus_0,
+          lwd = line.width, col = VERMILLION)
+error.bar(1:length(conf_beta_static$minus_1),conf_beta_static$minus_1,conf_beta_static_sd$minus_1,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_static$plus_1),conf_beta_static$plus_1,conf_beta_static_sd$plus_1,
+          lwd = line.width, col = VERMILLION)
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$minus_0 + conf_beta_static_pred_learn_sd$minus_0,
+                           (conf_beta_static_pred_learn$minus_0 - conf_beta_static_pred_learn_sd$minus_0)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$minus_1 + conf_beta_static_pred_learn_sd$minus_1,
+                           (conf_beta_static_pred_learn$minus_1 - conf_beta_static_pred_learn_sd$minus_1)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$plus_0 + conf_beta_static_pred_learn_sd$plus_0,
+                           (conf_beta_static_pred_learn$plus_0 - conf_beta_static_pred_learn_sd$plus_0)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$plus_1 + conf_beta_static_pred_learn_sd$plus_1,
+                           (conf_beta_static_pred_learn$plus_1 - conf_beta_static_pred_learn_sd$plus_1)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+
+# Static group, no learn model
+plot(conf_beta_static$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
+     lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
+title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
+lines(conf_beta_static$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
+lines(conf_beta_static$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
+lines(conf_beta_static$minus_1, type = 'l',  col = BLUE, lwd = line.width, lty = 1)
+points(conf_beta_static$plus_0, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_static$plus_1, pch = 16, cex = cex.pt, col = VERMILLION)
+points(conf_beta_static$minus_1, pch = 16, cex = cex.pt, col = BLUE)
+points(conf_beta_static$minus_0, pch = 16, cex = cex.pt, col = BLUE)
+error.bar(1:length(conf_beta_static$minus_0),conf_beta_static$minus_0,conf_beta_static_sd$minus_0,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_static$plus_0),conf_beta_static$plus_0,conf_beta_static_sd$plus_0,
+          lwd = line.width, col = VERMILLION)
+error.bar(1:length(conf_beta_static$minus_1),conf_beta_static$minus_1,conf_beta_static_sd$minus_1,
+          lwd = line.width, col = BLUE)
+error.bar(1:length(conf_beta_static$plus_1),conf_beta_static$plus_1,conf_beta_static_sd$plus_1,
+          lwd = line.width, col = VERMILLION)
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$minus_0 + conf_beta_static_pred_nolearn_sd$minus_0,
+                           (conf_beta_static_pred_nolearn$minus_0 - conf_beta_static_pred_nolearn_sd$minus_0)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$minus_1 + conf_beta_static_pred_nolearn_sd$minus_1,
+                           (conf_beta_static_pred_nolearn$minus_1 - conf_beta_static_pred_nolearn_sd$minus_1)[xlen:1]),
+        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$plus_0 + conf_beta_static_pred_nolearn_sd$plus_0,
+                           (conf_beta_static_pred_nolearn$plus_0 - conf_beta_static_pred_nolearn_sd$plus_0)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$plus_1 + conf_beta_static_pred_nolearn_sd$plus_1,
+                           (conf_beta_static_pred_nolearn$plus_1 - conf_beta_static_pred_nolearn_sd$plus_1)[xlen:1]),
+        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+
+dev.off()
 
 
 # Questionnaire analysis --------------------------------------------------
@@ -1759,250 +1275,3 @@ with(Data_beta,aggregate(sub,by=list(fb_understood,group),length_unique))
 fb_understood.test.beta <- glmer(fb_understood ~ group + (1|sub), data=Data_beta, family="binomial", control = glmercontrol)
 Anova(fb_understood.test.beta)
 
-# Behavior results figure layout ----------------------------------------------------
-diff_order <- c('hard','medium','easy')
-Ndiff <- length(diff_order)
-Nbeta <- length(unique(Data_beta$sub))
-cexax <- 1
-cex.lab <- 1
-cexleg <- 1
-cex.title <- 1
-cex.axis <- 1
-linelab <- 2.75
-lwdmean <- 3
-mar.rt.acc <- c(2,3.75,0,1)
-mar.cj <- c(4,3.75,0,1)
-yrange_rt <- c(.8,1.1)
-yrange_cj <- c(4.2,5.4)
-jpeg("Behavior_results.jpg", width = 19, height = 19, units = "cm", pointsize = 12, res = 1000)
-
-layout(matrix(c(1,2,3,4,5,6),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5))
-
-par(mar=mar.rt.acc)
-
-###
-# RT
-###
-
-plot_rt_low <- with(subset(Data_beta,condition=="minus"&cor==1),
-                    aggregate(rt,by=list(sub=sub,difflevel=difflevel),mean))
-plot_rt_low <- cast(plot_rt_low,sub~difflevel)
-plot_rt_low <- plot_rt_low[,diff_order] #Reorder columns to have hard -> easy
-
-plot_rt_high <- with(subset(Data_beta,condition=="plus"&cor==1),
-                     aggregate(rt,by=list(sub=sub,difflevel=difflevel),mean))
-plot_rt_high <- cast(plot_rt_high,sub~difflevel)
-plot_rt_high <- plot_rt_high[,diff_order] #Reorder columns to have hard -> easy
-
-yrange <- c(min(c(colMeans(plot_rt_low),colMeans(plot_rt_high))) - max(c(colSds(plot_rt_low),colSds(plot_rt_high)))/sqrt(Nbeta),
-            max(c(colMeans(plot_rt_low),colMeans(plot_rt_high))) + max(c(colSds(plot_rt_low),colSds(plot_rt_high)))/sqrt(Nbeta))
-yrange <- c(.75,1)
-plot(xlab="",ylab="",colMeans(plot_rt_low),frame=F,type='n',xlim=c(.8,Ndiff+.2),
-     ylim=yrange,xaxt='n',las=2)
-title(ylab="Reaction time (s)",xlab="", line = linelab, cex.lab = cex.lab)
-# axis(1,1:Ndiff,c("Hard","Average","Easy"),cex.axis=cexax)
-axis(1,1:Ndiff,c("","",""),cex.axis=cexax)
-points(colMeans(plot_rt_low),type='b',lwd=lwdmean,col=BLUE)
-error.bar(1:Ndiff,colMeans(plot_rt_low),
-          colSds(plot_rt_low,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE)
-
-points(colMeans(plot_rt_high),type='b',lwd=lwdmean,col=VERMILLION)
-error.bar(1:Ndiff,colMeans(plot_rt_high),
-          colSds(plot_rt_high,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION)
-legend("top",border=F,legend=c("Low","High"),pch=16,horiz=T,
-       col=c(BLUE,VERMILLION),bty="n",
-       cex=cexleg,title = "Feedback condition")
-###
-# Accuracy
-###
-par(mar=mar.rt.acc)
-
-
-plot_cor_low <- with(subset(Data_beta,condition=="minus"),
-                     aggregate(cor,by=list(sub=sub,difflevel=difflevel),mean))
-plot_cor_low <- cast(plot_cor_low,sub~difflevel)
-plot_cor_low <- plot_cor_low[,diff_order] #Reorder columns to have hard -> easy
-
-plot_cor_high <- with(subset(Data_beta,condition=="plus"),
-                      aggregate(cor,by=list(sub=sub,difflevel=difflevel),mean))
-plot_cor_high <- cast(plot_cor_high,sub~difflevel)
-plot_cor_high <- plot_cor_high[,diff_order] #Reorder columns to have hard -> easy
-
-yrange <- c(min(colMeans(rbind(plot_cor_low,plot_cor_high))) - min(colSds(rbind(plot_cor_low,plot_cor_high)))/sqrt(Nbeta),
-            max(colMeans(rbind(plot_cor_low,plot_cor_high))) + max(colSds(rbind(plot_cor_low,plot_cor_high)))/sqrt(Nbeta))
-plot(xlab="",ylab="",colMeans(plot_cor_low),frame=F,type='n',xlim=c(.8,Ndiff+.2),
-     ylim=c(.5,1),xaxt='n',las=2)
-title(ylab="Accuracy",xlab="", line = linelab, cex.lab = cex.lab)
-axis(1,1:Ndiff,c("","",""),cex.axis=cexax)
-points(colMeans(plot_cor_low),type='b',lwd=lwdmean,col=BLUE)
-error.bar(1:Ndiff,colMeans(plot_cor_low),
-          colSds(plot_cor_low,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE)
-
-points(colMeans(plot_cor_high),type='b',lwd=lwdmean,col=VERMILLION)
-error.bar(1:Ndiff,colMeans(plot_cor_high),
-          colSds(plot_cor_high,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION)
-
-###
-# Confidence
-###
-par(mar=mar.cj)
-
-plot_cj_low <- with(subset(Data_beta,condition=="minus"),
-                    aggregate(cj_integer,by=list(sub=sub,difflevel=difflevel,cor=cor),mean))
-plot_cj_low_cor <- cast(subset(plot_cj_low,cor==1),sub~difflevel)
-plot_cj_low_err <- cast(subset(plot_cj_low,cor==0),sub~difflevel)
-plot_cj_low_cor <- plot_cj_low_cor[,diff_order] #Reorder columns to have hard -> easy
-plot_cj_low_err <- plot_cj_low_err[,diff_order] #Reorder columns to have hard -> easy
-
-plot_cj_high <- with(subset(Data_beta,condition=="plus"),
-                     aggregate(cj_integer,by=list(sub=sub,difflevel=difflevel,cor=cor),mean))
-plot_cj_high_cor <- cast(subset(plot_cj_high,cor==1),sub~difflevel)
-plot_cj_high_err <- cast(subset(plot_cj_high,cor==0),sub~difflevel)
-plot_cj_high_cor <- plot_cj_high_cor[,diff_order] #Reorder columns to have hard -> easy
-plot_cj_high_err <- plot_cj_high_err[,diff_order] #Reorder columns to have hard -> easy
-
-yrange <- c(min(colMeans(rbind(plot_cj_low_err,plot_cj_high_err),na.rm = T)) - min(colSds(rbind(plot_cj_low_err,plot_cj_high_err),na.rm = T))/sqrt(Nbeta),
-            max(colMeans(rbind(plot_cj_low_cor,plot_cj_high_cor),na.rm = T)) + max(colSds(rbind(plot_cj_low_cor,plot_cj_high_cor),na.rm = T))/sqrt(Nbeta))
-plot(xlab="",ylab="",colMeans(plot_cj_low_cor),frame=F,type='n',xlim=c(.8,Ndiff+.2),
-     ylim=yrange,xaxt='n',las=2)
-title(ylab="Confidence",xlab="Trial difficulty", line = linelab, cex.lab = cex.lab)
-axis(1,1:Ndiff,c("Hard","Average","Easy"),cex.axis=cexax)
-# Incorrect trials
-points(colMeans(plot_cj_low_err,na.rm=T),type='b',lwd=lwdmean,col=BLUE,lty=2)
-error.bar(1:Ndiff,colMeans(plot_cj_low_err),
-          colSds(plot_cj_low_err,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE,lty=1)
-points(colMeans(plot_cj_high_err,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=2)
-error.bar(1:Ndiff,colMeans(plot_cj_high_err,na.rm=T),
-          colSds(plot_cj_high_err,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
-# Correct trials
-points(colMeans(plot_cj_low_cor,na.rm=T),type='b',lwd=lwdmean,col=BLUE,lty=1)
-error.bar(1:Ndiff,colMeans(plot_cj_low_cor),
-          colSds(plot_cj_low_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE,lty=1)
-points(colMeans(plot_cj_high_cor,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=1)
-error.bar(1:Ndiff,colMeans(plot_cj_high_cor,na.rm=T),
-          colSds(plot_cj_high_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
-legend("right",border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
-       col="black",bty="n",seg.len=1.5,
-       cex=cexleg,title = "Trial accuracy")
-
-# Plot aggregated traces  -------------------------------------------------
-m <- 'both'
-anal_sim$cj_scaled <- anal_sim$cj*6
-cj_pred <- with(subset(anal_sim,model==m),aggregate(cj_scaled,by=list(trial,sub),mean))
-names(cj_pred) <- c("trial","sub","cj")
-cj_pred <- merge(cj_pred,Data[,c("trial","sub","phase_block","manip","condition","cor")])
-
-conf_group_pred <- with(cj_pred,aggregate(cj,by=list(phase_block,manip,sub,condition,cor),mean))
-names(conf_group_pred) <- c('phase_block','manip','sub','condition','cor','cj')
-
-conf_beta_pred_count <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor, fun.aggregate = length)
-conf_beta_pred <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_beta_pred_sd <- cast(subset(conf_group_pred,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_beta_pred_sd[,2:5] <- conf_beta_pred_sd[,2:5]/sqrt(conf_beta_pred_count[,2:5])
-
-
-if (is.factor(Data$cor)) {
-  Data$cor <- as.numeric(Data$cor)-1
-}
-
-
-trials_phase <- data.frame(phase_block=rep(0:(Nphase_block-1),each=2),
-                           condition=c("minus","plus"),sub=rep(subs,each=Nphase_block*2))
-
-rt_group <- with(Data,aggregate(rt,by=list(phase_block,manip,sub,condition),mean))
-names(rt_group) <- c('phase_block','manip','sub','condition','cj')
-rt_group <- merge(rt_group,trials_phase,all=T)
-rt_group[rt_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
-
-rt_beta <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-rt_beta_count <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate=length)
-rt_beta_sd <- cast(subset(rt_group,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-rt_beta_sd[,2:3] <- rt_beta_sd[,2:3]/sqrt(rt_beta_count[,2:3])
-
-cor_group <- with(Data,aggregate(cor,by=list(phase_block,manip,sub,condition),mean))
-names(cor_group) <- c('phase_block','manip','sub','condition','cj')
-cor_group <- merge(cor_group,trials_phase,all=T)
-cor_group[cor_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
-
-
-cor_beta <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate = mean,na.rm=T)
-cor_beta_count <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate=length)
-cor_beta_sd <- cast(subset(cor_group,manip=='beta'),phase_block~condition,fun.aggregate = sd,na.rm=T)
-cor_beta_sd[,2:3] <- cor_beta_sd[,2:3]/sqrt(cor_beta_count[,2:3])
-
-conf_group <- with(Data,aggregate(cj_integer,by=list(phase_block,manip,sub,condition,cor),mean))
-names(conf_group) <- c('phase_block','manip','sub','condition','cor','cj')
-conf_group <- merge(conf_group,trials_phase,all=T)
-conf_group[conf_group$sub %in% Data_alpha$sub,'manip'] <- 'alpha'
-conf_group[conf_group$sub %in% Data_beta$sub,'manip'] <- 'beta'
-conf_beta <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = mean,na.rm=T)
-conf_beta_count <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,length)
-conf_beta_sd <- cast(subset(conf_group,manip=='beta'),phase_block~condition+cor,fun.aggregate = sd,na.rm=T)
-conf_beta_sd[,2:5] <- conf_beta_sd[,2:5]/sqrt(conf_beta_count[,2:5])
-
-
-par(mar=mar.rt.acc)
-
-xlen <- dim(conf_beta)[1]
-plot(rt_beta$minus,ylim=yrange_rt,col = BLUE, type = 'b',main="",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.lab=cex.lab,cex.axis=cex.axis,las=2)
-axis(1, at = 1:Nphase_block, labels = F,cex.axis=cex.axis)
-title(ylab = "Reaction time (s)", xlab = "", 
-      line = linelab,cex.lab=cex.lab)
-lines(rt_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-error.bar(1:xlen,rt_beta$minus,rt_beta_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:xlen,rt_beta$plus,rt_beta_sd$plus,
-          lwd=2, col = VERMILLION)
-
-par(mar=mar.rt.acc)
-
-plot(cor_beta$minus,ylim=c(.5,1),col = BLUE, type = 'b',main="",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.lab=cex.lab,cex.axis=cex.axis,las=2)
-axis(1, at = 1:Nphase_block, labels = F,cex.axis=cex.axis)
-title(ylab = "Accuracy", xlab = "", 
-      line = linelab,cex.lab=cex.lab)
-lines(cor_beta$plus, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-error.bar(1:xlen,cor_beta$minus,cor_beta_sd$minus,
-          lwd=2, col = BLUE)
-error.bar(1:xlen,cor_beta$plus,cor_beta_sd$plus,
-          lwd=2, col = VERMILLION)
-
-par(mar=mar.cj)
-
-
-plot(conf_beta$minus_0,ylim=yrange_cj,col = BLUE, type = 'b',main="",
-     lty = 2, pch = 16, lwd = 2, bty = 'n', xaxt = 'n', ylab = "",cex.main=cex.title,
-     xlab = "",cex.lab=cex.lab,cex.axis=cex.axis,las=2)
-title(ylab="Confidence",xlab= paste("Within phase groups of",Nphase_trial/Nphase_block,"trials"), line = linelab, cex.lab = cex.lab)
-axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
-lines(conf_beta$plus_0, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 2)
-lines(conf_beta$plus_1, type = 'b', pch = 16, col = VERMILLION, lwd = 2, lty = 1)
-lines(conf_beta$minus_1, type = 'b', pch = 16, col = BLUE, lwd = 2, lty = 1)
-error.bar(1:length(conf_beta$minus_0),conf_beta$minus_0,conf_beta_sd$minus_0,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_beta$plus_0),conf_beta$plus_0,conf_beta_sd$plus_0,
-          lwd=2, col = VERMILLION)
-error.bar(1:length(conf_beta$minus_1),conf_beta$minus_1,conf_beta_sd$minus_1,
-          lwd=2, col = BLUE)
-error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
-          lwd=2, col = VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
-                           (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_1 + conf_beta_pred_sd$minus_1,
-                           (conf_beta_pred$minus_1 - conf_beta_pred_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
-                           (conf_beta_pred$plus_0 - conf_beta_pred_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
-                           (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend("top",legend = c('Behavior','Model'),lty = c(1,NA),col = c("black",rgb(0,0,0,.5)),
-       border=NA,pch = c(16,15),horiz = T, bty = 'n',cex = cexleg,pt.cex=c(1,2))
-
-dev.off()
-par(mar=c(5,4,4,2)+.1)
