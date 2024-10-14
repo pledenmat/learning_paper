@@ -643,11 +643,15 @@ linelab <- 2.75
 lwdmean <- 3
 mar.rt.acc <- c(2,3.75,0,1)
 mar.cj <- c(4,3.75,0,1)
+mar.raw.cj <- c(4,3.75,1,1)
 yrange_rt <- c(.8,1.1)
 yrange_cj <- c(4.2,5.4)
-jpeg("Behavior_results.jpg", width = 19, height = 19, units = "cm", pointsize = 12, res = 1000)
 
-layout(matrix(c(1,2,3,4,5,6),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5))
+setwd(paste0(curdir,"/plots/paper"))
+jpeg("Behavior_results2.jpg", width = 19, height = 24, units = "cm", pointsize = 15, res = 1000)
+
+# layout(matrix(c(1,2,3,4,5,6),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5))
+layout(matrix(c(1,2,3,7,4,5,6,7),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5,1.5))
 
 ###
 # Accuracy
@@ -678,6 +682,9 @@ error.bar(1:Ndiff,colMeans(plot_cor_low),
 points(colMeans(plot_cor_high),type='b',lwd=lwdmean,col=VERMILLION)
 error.bar(1:Ndiff,colMeans(plot_cor_high),
           colSds(plot_cor_high,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION)
+legend("bottom",border=F,legend=c("Low","High"),pch=16,horiz=T,
+       col=c(BLUE,VERMILLION),bty="n",
+       cex=cexleg,title = "Feedback condition")
 
 par(mar=mar.rt.acc)
 
@@ -710,9 +717,6 @@ error.bar(1:Ndiff,colMeans(plot_rt_low),
 points(colMeans(plot_rt_high),type='b',lwd=lwdmean,col=VERMILLION)
 error.bar(1:Ndiff,colMeans(plot_rt_high),
           colSds(plot_rt_high,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION)
-legend("top",border=F,legend=c("Low","High"),pch=16,horiz=T,
-       col=c(BLUE,VERMILLION),bty="n",
-       cex=cexleg,title = "Feedback condition")
 
 ###
 # Confidence
@@ -753,7 +757,7 @@ error.bar(1:Ndiff,colMeans(plot_cj_low_cor),
 points(colMeans(plot_cj_high_cor,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=1)
 error.bar(1:Ndiff,colMeans(plot_cj_high_cor,na.rm=T),
           colSds(plot_cj_high_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
-legend("right",border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
+legend(1.7,5,border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
        col="black",bty="n",seg.len=1.5,
        cex=cexleg,title = "Trial accuracy")
 
@@ -877,8 +881,59 @@ polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
 legend("top",legend = c('Behavior','Model'),lty = c(1,NA),col = c("black",rgb(0,0,0,.5)),
        border=NA,pch = c(16,15),horiz = T, bty = 'n',cex = cexleg,pt.cex=c(1,2))
 
+# Plot confidence rolling mean over the course of the experiment ---------------------------------------------------
+par(mar=mar.raw.cj)
+
+# Plot ExpB trace 
+plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
+minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
+Ntrials_phase <- Ntrials/length(unique(Data$phase))
+
+conf_min <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj*6, by=list(trial,cor),mean,na.rm=T))
+names(conf_min) <- c("trial","cor","cj")
+conf_min_se <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj*6, by=list(trial,cor),se,na.rm=T))
+names(conf_min_se) <- c("trial","cor","cj")
+conf_plus <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj*6, by=list(trial,cor),mean,na.rm=T))
+names(conf_plus) <- c("trial","cor","cj")
+conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj*6, by=list(trial,cor),se,na.rm=T))
+names(conf_plus_se) <- c("trial","cor","cj")
+
+xlen <- dim(conf_plus)[1]/2
+conf_min_err <- subset(conf_min,cor==0)$cj
+conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+conf_min_cor <- subset(conf_min,cor==1)$cj
+conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
+conf_plus_err <- subset(conf_plus,cor==0)$cj
+conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
+conf_plus_cor <- subset(conf_plus,cor==1)$cj
+conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+
+plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUISH_GREEN,ylim=c(3.6,5.4),las=2,     
+     main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,xaxt='n',yaxt='n',xlab='',ylab='')
+title(xlab = "Trial", ylab = "Confidence", line = linelab, cex.lab = cex.lab)
+axis(1,at=seq(0,Ntrials,Ntrials/6),labels=seq(0,Ntrials,Ntrials/6),cex.axis=cex.axis)
+axis(2,at=seq(3.6,5.4,.3),labels=seq(3.6,5.4,.3),cex.axis=cex.axis,las=2)
+abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
+polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
+        border=F,col=rgb(0,158,115,51,maxColorValue = 255))
+lines(conf_min_cor,col=BLUISH_GREEN)
+polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
+        border=F,col=rgb(0,158,115,51,maxColorValue = 255))
+lines(conf_plus_err,lty = 2,col=REDDISH_PURPLE)
+polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
+        border=F,col=rgb(204,121,167,51,maxColorValue = 255))
+lines(conf_plus_cor,col=REDDISH_PURPLE)
+polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
+        border=F,col=rgb(204,121,167,51,maxColorValue = 255))
+legend(cex=cexleg,"bottomleft",legend = c(paste("High feedback first"), paste("Low feedback first")),
+       col = c(REDDISH_PURPLE,BLUISH_GREEN), bty = 'n', lty = c(1,1))
+legend("bottomright",border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
+       col="black",bty="n",seg.len=1.5,
+       cex=cexleg,title = "Trial accuracy")
+
 dev.off()
 par(mar=c(5,4,4,2)+.1)
+
 # Reanalyze confidence according to group -----------------------------------------------------------
 if (stat_tests) {
   control <- lmerControl(optimizer = "bobyqa")
@@ -1275,3 +1330,66 @@ with(Data_beta,aggregate(sub,by=list(fb_understood,group),length_unique))
 fb_understood.test.beta <- glmer(fb_understood ~ group + (1|sub), data=Data_beta, family="binomial", control = glmercontrol)
 Anova(fb_understood.test.beta)
 
+
+
+# Plot Feedback -----------------------------------------------------------
+
+diff_order <- c('hard','medium','easy')
+Ndiff <- length(diff_order)
+Nbeta <- length(unique(Data_beta$sub))
+ptsize <- 10
+cexax <- 1
+cex.lab <- 1
+cexleg <- 1*8/ptsize
+cex.title <- 1
+cex.axis <- 1
+linelab <- 2.5
+lwdmean <- 2
+pch <- 16
+mar.fb <- c(3.5,3.5,0,1)
+jpeg("feedback.jpg", width = 6, height = 6, units = "cm", pointsize = ptsize, res = 1000)
+
+par(mar=mar.fb)
+
+plot_fb_low <- with(subset(Data_beta,condition=="minus"),
+                    aggregate(fb*100,by=list(sub=sub,difflevel=difflevel,cor=cor),mean))
+plot_fb_low_cor <- cast(subset(plot_fb_low,cor==1),sub~difflevel)
+plot_fb_low_err <- cast(subset(plot_fb_low,cor==0),sub~difflevel)
+plot_fb_low_cor <- plot_fb_low_cor[,diff_order] #Reorder columns to have hard -> easy
+plot_fb_low_err <- plot_fb_low_err[,diff_order] #Reorder columns to have hard -> easy
+
+plot_fb_high <- with(subset(Data_beta,condition=="plus"),
+                     aggregate(fb*100,by=list(sub=sub,difflevel=difflevel,cor=cor),mean))
+plot_fb_high_cor <- cast(subset(plot_fb_high,cor==1),sub~difflevel)
+plot_fb_high_err <- cast(subset(plot_fb_high,cor==0),sub~difflevel)
+plot_fb_high_cor <- plot_fb_high_cor[,diff_order] #Reorder columns to have hard -> easy
+plot_fb_high_err <- plot_fb_high_err[,diff_order] #Reorder columns to have hard -> easy
+
+yrange <- c(min(colMeans(rbind(plot_fb_low_err,plot_fb_high_err),na.rm = T)) - min(colSds(rbind(plot_fb_low_err,plot_fb_high_err),na.rm = T))/sqrt(Nbeta),
+            max(colMeans(rbind(plot_fb_low_cor,plot_fb_high_cor),na.rm = T)) + max(colSds(rbind(plot_fb_low_cor,plot_fb_high_cor),na.rm = T))/sqrt(Nbeta))
+plot(xlab="",ylab="",colMeans(plot_fb_low_cor),frame=F,type='n',xlim=c(.8,Ndiff+.2),
+     ylim=c(0,100),xaxt='n',las=2)
+title(ylab="Feedback",xlab="Trial difficulty", line = linelab, cex.lab = cex.lab)
+axis(1,1:Ndiff,c("Hard","Average","Easy"),cex.axis=cexax)
+# Incorrect trials
+points(colMeans(plot_fb_low_err,na.rm=T),type='b',lwd=lwdmean,col=BLUE,lty=2,pch=pch)
+error.bar(1:Ndiff,colMeans(plot_fb_low_err),
+          colSds(plot_fb_low_err,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE,lty=1)
+points(colMeans(plot_fb_high_err,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=2,pch=pch)
+error.bar(1:Ndiff,colMeans(plot_fb_high_err,na.rm=T),
+          colSds(plot_fb_high_err,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
+# Correct trials
+points(colMeans(plot_fb_low_cor,na.rm=T),type='b',lwd=lwdmean,col=BLUE,lty=1,pch=pch)
+error.bar(1:Ndiff,colMeans(plot_fb_low_cor),
+          colSds(plot_fb_low_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=BLUE,lty=1)
+points(colMeans(plot_fb_high_cor,na.rm=T),type='b',lwd=lwdmean,col=VERMILLION,lty=1,pch=pch)
+error.bar(1:Ndiff,colMeans(plot_fb_high_cor,na.rm=T),
+          colSds(plot_fb_high_cor,na.rm=T)/sqrt(Nbeta),lwd=lwdmean,length=0,col=VERMILLION,lty=1)
+legend("bottomleft",border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
+       col="black",bty="n",seg.len=1.5,
+       cex=cexleg,title = "Trial accuracy")
+legend("bottomright",border=F,legend=c("High","Low"),lty=1,horiz=F,
+       col=c(VERMILLION,BLUE),bty="n",seg.len=1.5,lwd=lwdmean,
+       cex=cexleg,title = "Condition")
+
+dev.off()
