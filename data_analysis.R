@@ -96,6 +96,7 @@ Data[Data$manip=='alfa','manip'] <- 'alpha'
 # Demographics
 age_alpha <- with(subset(Data,manip=='alpha'),aggregate(age,by=list(sub),mean))
 summary(age_alpha$x)
+sd(age_alpha$x)
 gender_alpha <- table(subset(Data,manip=='alpha')$gender)/756
 
 age_beta <- with(subset(Data,manip=='beta'),aggregate(age,by=list(sub),mean))
@@ -133,7 +134,7 @@ par(mar=c(5,4,4,2)+.1,mfrow=c(1,1))
 table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
 
 #' Filter out participants who reported only one confidence level 
-#' more than 85% of the time
+#' more than 90% of the time
 conf_count <- with(Data,aggregate(cj,by=list(sub=sub),max_count))
 conf_count$x <- conf_count$x/Ntrials
 exclusion <- c(exclusion, unique(conf_count[conf_count$x>.9,"sub"]))
@@ -170,8 +171,7 @@ Data[Data$sub %in% minus_first,"order"] <- "minus_first"
 setwd("..")
 Nskip <- 0
 Data <- subset(Data,RTconf<5 & rt<5 & rt>.2 & trial>=Nskip)
-Ntrials <- Ntrials - Nskip # Because we now skip the first 5 trials
-# write.csv(Data,file = "alternating_fb_mod_trim_skip.csv",row.names = F)
+Ntrials <- Ntrials - Nskip # Deprecated, was used as exploratory analysis
 write.csv(Data,file = "alternating_fb_mod_trim.csv",row.names = F)
 # write.csv(Data,file = "alternating_fb_mod.csv",row.names = F)
 
@@ -197,7 +197,6 @@ if (stat_tests) {
   # Set contrast coding
   options(contrasts=c("contr.sum","contr.poly"))
   
-  ## Replication of previous experiments (static effects)
   # RT
   rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
@@ -215,16 +214,16 @@ if (stat_tests) {
   
   # Accuracy
   acc.int.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
-  acc.cond.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,family = binomial, control = glmercontrol)
-  anova(acc.int.alpha,acc.cond.alpha)
-  acc.cond.diff.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_alpha,family = binomial)
-  Anova(acc.cond.alpha)
+  # Somehow even the simplest mixed model doesn't converge. Using regular Anova instead.
+  acc.alpha <- glm(cor~condition*difflevel*withinphasetrial,data = Data_alpha,family = binomial)
+  Anova(acc.alpha,type=3)
+  
   
   acc.int.beta <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_beta,family = binomial, control = glmercontrol)
-  acc.cond.beta <- glmer(cor~condition*difflevel*withinphasetrial + (condition|sub),data = Data_beta,family = binomial, control = glmercontrol)
-  anova(acc.int.beta,acc.cond.beta)
-  acc.cond.diff.beta <- glmer(cor~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = Data_beta,family = binomial)
-  Anova(acc.cond.beta)
+  # Same thing happened here. Using regular Anova again
+  acc.beta <- glm(cor~condition*difflevel*withinphasetrial,data = Data_beta,family = binomial)
+  Anova(acc.beta,type=3)
+  
   
   # Alpha
   cj.int.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F, ,control = control); 
@@ -503,20 +502,6 @@ mean_bic[mean_bic$manip=="beta","delta"] <-
   mean_bic[mean_bic$manip=="beta",]$x -
   min(mean_bic[mean_bic$manip=="beta",]$x)
 
-# Plot differences in BIC
-go_to("plots")
-go_to("paper")
-jpeg("model_comparison.jpg",width=10,height=10,units = 'cm',res=600)
-bp <- barplot(subset(mean_bic,manip=='beta')$delta, las = 2,
-              ylab = expression(paste(Delta,"BIC")), xlab = "")
-# Add model names under each bar
-bp.labels <- subset(mean_bic,manip=='beta')$model
-bp.labels[bp.labels=="alpha"] <- expression(paste(alpha,"-learning"))
-bp.labels[bp.labels=="beta"] <- expression(paste(beta,"-learning"))
-bp.labels[bp.labels=="both"] <- "Full learning"
-bp.labels[bp.labels=="no"] <- "No learning"
-text(x = bp, y = -0.5, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
-dev.off()
 
 ### Best model per participant
 model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
@@ -529,22 +514,42 @@ table(subset(model_bic,manip=='alpha')$best)
 table(subset(model_bic,manip=='beta')$best)
 model_bic$diff_learn <- model_bic$best_learning - model_bic$no
 
+
+# Plot differences in BIC
+go_to("plots")
+go_to("paper")
+jpeg("model_comparison.jpg",width=19,height=6,units = 'cm',res=600, pointsize = 10)
+par(mfrow=c(1,2))
+par(mar=c(4,5.5,2,0))
+mean_bic_nolearn <- subset(mean_bic,model=="no" & manip=="beta")$delta
+mean_bic_learn <- min(subset(mean_bic,model!="no" & manip=="beta")$delta) 
+range_bic_learn <- range(subset(mean_bic,model!="no" & manip=="beta")$delta) 
+bp <- barplot(matrix(c(mean_bic_learn,mean_bic_nolearn)), las = 2, horiz=T,xaxt='n',
+              names.arg = c("Learning", "No learning"), border = NA, beside = T,
+              xlab="",ylab = "")
+title(xlab = expression(paste(Delta,"BIC")), ylab = "", line = 2.5)
+axis(1, seq(0,14,2), seq(0,14,2))
+# arrows(mean_bic_learn,bp[1], 
+#        range_bic_learn[2],bp[1],angle=90,length=0.1)
+
+# Plot N best models
+par(mar=c(4,3.5,2,2))
+if ("no" %in% model_bic$best) {
+  model_bic[model_bic$best != 'no',"best"] <- "Learning"
+  model_bic[model_bic$best == 'no',"best"] <- "No learning"
+}
 best_model <- table(subset(model_bic,manip=='beta')$best)/Nbeta*100
-names(best_model) <- ""
-jpeg("model_comparison_best.jpg",width=10,height=10,units = 'cm',res=600)
-bp <- barplot(best_model,ylab = "% participants", xlab = "", las = 2)
+bp <- barplot(matrix(best_model), las=2, xlab="",ylab = "",horiz=T, 
+              xaxt='n',xlim = c(0,60), beside =T, names.arg = c("", ""), border = NA)
+title(xlab = "% participants", ylab = "", line = 2.5)
+axis(1, seq(0,60,10), seq(0,60,10))
 # Add model names under each bar
-bp.labels <- subset(mean_bic,manip=='beta')$model
-bp.labels[bp.labels=="alpha"] <- expression(paste(alpha,"-learning"))
-bp.labels[bp.labels=="beta"] <- expression(paste(beta,"-learning"))
-bp.labels[bp.labels=="both"] <- "Full learning"
-bp.labels[bp.labels=="no"] <- "No learning"
-text(x = bp, y = -2, labels = bp.labels, srt = 45, adj = 1, xpd = TRUE)
 dev.off()
+par(mar=c(5,4,4,2)+.1)
+par(mfrow=c(1,1))
 
-
-sub_nolearn_best <- subset(model_bic,best=='no')$sub
-sub_learn_best <- subset(model_bic,best!='no')$sub
+sub_nolearn_best <- subset(model_bic,best=='No learning')$sub
+sub_learn_best <- subset(model_bic,best!='No learning')$sub
 
 model_bic_learn_vs_nolearn <- subset(model_bic,manip=='beta')[,c('sub','manip','both','no','best')]
 model_bic_learn_vs_nolearn$best <- c("both","no")[apply(model_bic_learn_vs_nolearn[,3:4],1,which.min)]
@@ -574,7 +579,7 @@ for (s in 1:Nsub) {
 
 # Create groups according to best model
 Data$group <- "dynamic"
-Data[Data$best == "no",]$group <- "static"
+Data[Data$best == "No learning",]$group <- "static"
 Data_alpha <- subset(Data,manip=="alpha")
 Data_beta <- subset(Data,manip=="beta")
 
@@ -646,6 +651,8 @@ mar.cj <- c(4,3.75,0,1)
 mar.raw.cj <- c(4,3.75,1,1)
 yrange_rt <- c(.8,1.1)
 yrange_cj <- c(4.2,5.4)
+col_plus_overlay <- rgb(213,94,0,51,maxColorValue = 255)
+col_minus_overlay <- rgb(0,114,178,51,maxColorValue = 255)
 
 setwd(paste0(curdir,"/plots/paper"))
 jpeg("Behavior_results2.jpg", width = 19, height = 24, units = "cm", pointsize = 15, res = 1000)
@@ -868,21 +875,23 @@ error.bar(1:length(conf_beta$plus_1),conf_beta$plus_1,conf_beta_sd$plus_1,
           lwd=2, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_0 + conf_beta_pred_sd$minus_0,
                            (conf_beta_pred$minus_0 - conf_beta_pred_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_pred$minus_1 + conf_beta_pred_sd$minus_1,
                            (conf_beta_pred$minus_1 - conf_beta_pred_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_0 + conf_beta_pred_sd$plus_0,
                            (conf_beta_pred$plus_0 - conf_beta_pred_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_pred$plus_1 + conf_beta_pred_sd$plus_1,
                            (conf_beta_pred$plus_1 - conf_beta_pred_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 legend("top",legend = c('Behavior','Model'),lty = c(1,NA),col = c("black",rgb(0,0,0,.5)),
        border=NA,pch = c(16,15),horiz = T, bty = 'n',cex = cexleg,pt.cex=c(1,2))
 
 # Plot confidence rolling mean over the course of the experiment ---------------------------------------------------
 par(mar=mar.raw.cj)
+
+Nphase <- 6
 
 # Plot ExpB trace 
 plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
@@ -898,38 +907,65 @@ names(conf_plus) <- c("trial","cor","cj")
 conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj*6, by=list(trial,cor),se,na.rm=T))
 names(conf_plus_se) <- c("trial","cor","cj")
 
+trials_phase1 <- c(seq(0,Ntrials_phase-1), 
+                   seq(0,Ntrials_phase-1) + Ntrials_phase*2, 
+                   seq(0,Ntrials_phase-1) + Ntrials_phase*4)
+
 xlen <- dim(conf_plus)[1]/2
-conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
+
 conf_min_cor <- subset(conf_min,cor==1)$cj
 conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-conf_plus_err <- subset(conf_plus,cor==0)$cj
-conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
 conf_plus_cor <- subset(conf_plus,cor==1)$cj
 conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
 
-plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUISH_GREEN,ylim=c(3.6,5.4),las=2,     
+
+plot(conf_min_cor,bty='n',lty = 2,type='l',col="white",ylim=c(4.6,5.5),las=2,     
      main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,xaxt='n',yaxt='n',xlab='',ylab='')
 title(xlab = "Trial", ylab = "Confidence", line = linelab, cex.lab = cex.lab)
 axis(1,at=seq(0,Ntrials,Ntrials/6),labels=seq(0,Ntrials,Ntrials/6),cex.axis=cex.axis)
-axis(2,at=seq(3.6,5.4,.3),labels=seq(3.6,5.4,.3),cex.axis=cex.axis,las=2)
+axis(2,at=seq(4.6,5.5,.3),labels=seq(4.6,5.5,.3),cex.axis=cex.axis,las=2)
+
 abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-        border=F,col=rgb(0,158,115,51,maxColorValue = 255))
-lines(conf_min_cor,col=BLUISH_GREEN)
-polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-        border=F,col=rgb(0,158,115,51,maxColorValue = 255))
-lines(conf_plus_err,lty = 2,col=REDDISH_PURPLE)
-polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-        border=F,col=rgb(204,121,167,51,maxColorValue = 255))
-lines(conf_plus_cor,col=REDDISH_PURPLE)
-polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-        border=F,col=rgb(204,121,167,51,maxColorValue = 255))
-legend(cex=cexleg,"bottomleft",legend = c(paste("High feedback first"), paste("Low feedback first")),
-       col = c(REDDISH_PURPLE,BLUISH_GREEN), bty = 'n', lty = c(1,1))
-legend("bottomright",border=F,legend=c("Correct","Incorrect"),lty=c(1,2),horiz=F,
+
+for (phase in 1:Nphase) {
+  if (phase == 1) {
+    trials_phase <- seq(Ntrials_phase*(phase-1)+1,Ntrials_phase*phase)
+  } else {
+    trials_phase <- seq(Ntrials_phase*(phase-1),Ntrials_phase*phase)
+  }
+  
+  if (phase %% 2 == 1) {
+    
+    lines(trials_phase,conf_min_cor[trials_phase],col=BLUE,lty=2)
+    lines(trials_phase,conf_plus_cor[trials_phase],col=VERMILLION)
+    
+    polygon(c(trials_phase,trials_phase[Ntrials_phase:1]),
+            c((conf_min_cor + conf_min_cor_se)[trials_phase],
+              (conf_min_cor - conf_min_cor_se)[trials_phase[Ntrials_phase:1]]),
+            border=F,col=col_minus_overlay)
+    polygon(c(trials_phase,trials_phase[Ntrials_phase:1]),
+            c((conf_plus_cor + conf_plus_cor_se)[trials_phase],
+              (conf_plus_cor - conf_plus_cor_se)[trials_phase[Ntrials_phase:1]]),
+            border=F,col=col_plus_overlay)
+  } else {
+    
+    lines(trials_phase,conf_min_cor[trials_phase],col=VERMILLION,lty=2)
+    lines(trials_phase,conf_plus_cor[trials_phase],col=BLUE)
+    
+    polygon(c(trials_phase,trials_phase[Ntrials_phase:1]),
+            c((conf_min_cor + conf_min_cor_se)[trials_phase],
+              (conf_min_cor - conf_min_cor_se)[trials_phase[Ntrials_phase:1]]),
+            border=F,col=col_plus_overlay)
+    polygon(c(trials_phase,trials_phase[Ntrials_phase:1]),
+            c((conf_plus_cor + conf_plus_cor_se)[trials_phase],
+              (conf_plus_cor - conf_plus_cor_se)[trials_phase[Ntrials_phase:1]]),
+            border=F,col=col_minus_overlay)
+  }
+}  
+
+legend("bottom",border=F,legend=c("High first","Low first"),lty=c(1,2),horiz=T,
        col="black",bty="n",seg.len=1.5,
-       cex=cexleg,title = "Trial accuracy")
+       cex=cexleg,title = "Counterbalance order")
 
 dev.off()
 par(mar=c(5,4,4,2)+.1)
@@ -1073,25 +1109,25 @@ cex_size <- function(size,cex.layout) {
   return(size/(par()$ps*cex.layout))
 }
 ### Adjust sizes and positions
-cex.layout <- .66
+cex.layout <- .83
 # Text
-cex.legend <- cex_size(10,cex.layout)
-cex.axis <- cex_size(10,cex.layout) 
-cex.lab <- cex_size(12,cex.layout)
+cex.legend <- cex_size(8,cex.layout)
+cex.axis <- cex_size(8,cex.layout) 
+cex.lab <- cex_size(10,cex.layout)
 line.width <- 1
 cex.pt <- .8
 yrange <- c(4,5.5)
 
 xlen <- dim(conf_beta_static)[1]
 
-jpeg("conf_beta_group.jpeg",width=24,height=18,units="cm",res=600)
+jpeg("conf_beta_group_new.jpeg",width=16.5,height=11,units="cm",res=600)
 par(mfrow=c(2,2))
 par(mar=c(3,3,0,0)+.1)
 
 # dynamic group, learn model
 plot(conf_beta_dynamic$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
      lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
-title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+title(ylab = "Confidence",xlab = "",cex.lab=cex.lab,line=2)
 axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
 lines(conf_beta_dynamic$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
 lines(conf_beta_dynamic$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
@@ -1110,26 +1146,26 @@ error.bar(1:length(conf_beta_dynamic$plus_1),conf_beta_dynamic$plus_1,conf_beta_
           lwd = line.width, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$minus_0 + conf_beta_dynamic_pred_learn_sd$minus_0,
                            (conf_beta_dynamic_pred_learn$minus_0 - conf_beta_dynamic_pred_learn_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$minus_1 + conf_beta_dynamic_pred_learn_sd$minus_1,
                            (conf_beta_dynamic_pred_learn$minus_1 - conf_beta_dynamic_pred_learn_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$plus_0 + conf_beta_dynamic_pred_learn_sd$plus_0,
                            (conf_beta_dynamic_pred_learn$plus_0 - conf_beta_dynamic_pred_learn_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_learn$plus_1 + conf_beta_dynamic_pred_learn_sd$plus_1,
                            (conf_beta_dynamic_pred_learn$plus_1 - conf_beta_dynamic_pred_learn_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 legend(0.5,.93*6,legend = c('High feedback','Low feedback'),lty = c(1,1),col = c(VERMILLION,BLUE),
        pch = c(16,16), bty = 'n',cex = cex.legend)
-legend(12,.93*6,legend=c("Correct trials","Error trials"),
+legend(11.5,.93*6,legend=c("Correct trials","Error trials"),
        title = NULL,lty=c(1,2),bty = "n",inset=0,
        cex = cex.legend, lwd=lwd.dat,seg.len=1.5)
 
 # dynamic group, no learn model
 plot(conf_beta_dynamic$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
      lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
-title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+title(ylab = "",xlab = "",cex.lab=cex.lab,line=2)
 axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
 lines(conf_beta_dynamic$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
 lines(conf_beta_dynamic$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
@@ -1148,16 +1184,16 @@ error.bar(1:length(conf_beta_dynamic$plus_1),conf_beta_dynamic$plus_1,conf_beta_
           lwd = line.width, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$minus_0 + conf_beta_dynamic_pred_nolearn_sd$minus_0,
                            (conf_beta_dynamic_pred_nolearn$minus_0 - conf_beta_dynamic_pred_nolearn_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$minus_1 + conf_beta_dynamic_pred_nolearn_sd$minus_1,
                            (conf_beta_dynamic_pred_nolearn$minus_1 - conf_beta_dynamic_pred_nolearn_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$plus_0 + conf_beta_dynamic_pred_nolearn_sd$plus_0,
                            (conf_beta_dynamic_pred_nolearn$plus_0 - conf_beta_dynamic_pred_nolearn_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_dynamic_pred_nolearn$plus_1 + conf_beta_dynamic_pred_nolearn_sd$plus_1,
                            (conf_beta_dynamic_pred_nolearn$plus_1 - conf_beta_dynamic_pred_nolearn_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 legend("top",legend = c('Behavior','Model'),lty = c(1,NA),col = c("black",rgb(0,0,0,.5)),
        border=NA,pch = c(16,15),horiz = T, bty = 'n',cex = cex.legend,pt.cex=c(1,2))
 
@@ -1183,21 +1219,21 @@ error.bar(1:length(conf_beta_static$plus_1),conf_beta_static$plus_1,conf_beta_st
           lwd = line.width, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$minus_0 + conf_beta_static_pred_learn_sd$minus_0,
                            (conf_beta_static_pred_learn$minus_0 - conf_beta_static_pred_learn_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$minus_1 + conf_beta_static_pred_learn_sd$minus_1,
                            (conf_beta_static_pred_learn$minus_1 - conf_beta_static_pred_learn_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$plus_0 + conf_beta_static_pred_learn_sd$plus_0,
                            (conf_beta_static_pred_learn$plus_0 - conf_beta_static_pred_learn_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_learn$plus_1 + conf_beta_static_pred_learn_sd$plus_1,
                            (conf_beta_static_pred_learn$plus_1 - conf_beta_static_pred_learn_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 
 # Static group, no learn model
 plot(conf_beta_static$minus_0,ylim=yrange,col = BLUE, type = 'l',main="",
      lty = 2,  lwd = line.width, bty = 'n', xaxt = 'n', xlab="",ylab="",cex.axis=cex.axis)
-title(ylab = "Confidence",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
+title(ylab = "",xlab = "Within phase groups of 7 trials",cex.lab=cex.lab,line=2)
 axis(1, at = 1:Nphase_block, labels = 1:Nphase_block,cex.axis=cex.axis)
 lines(conf_beta_static$plus_0, type = 'l',  col = VERMILLION, lwd = line.width, lty = 2)
 lines(conf_beta_static$plus_1, type = 'l',  col = VERMILLION, lwd = line.width, lty = 1)
@@ -1216,16 +1252,16 @@ error.bar(1:length(conf_beta_static$plus_1),conf_beta_static$plus_1,conf_beta_st
           lwd = line.width, col = VERMILLION)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$minus_0 + conf_beta_static_pred_nolearn_sd$minus_0,
                            (conf_beta_static_pred_nolearn$minus_0 - conf_beta_static_pred_nolearn_sd$minus_0)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$minus_1 + conf_beta_static_pred_nolearn_sd$minus_1,
                            (conf_beta_static_pred_nolearn$minus_1 - conf_beta_static_pred_nolearn_sd$minus_1)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
+        border=F,col=col_minus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$plus_0 + conf_beta_static_pred_nolearn_sd$plus_0,
                            (conf_beta_static_pred_nolearn$plus_0 - conf_beta_static_pred_nolearn_sd$plus_0)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 polygon(c(1:xlen,xlen:1),c(conf_beta_static_pred_nolearn$plus_1 + conf_beta_static_pred_nolearn_sd$plus_1,
                            (conf_beta_static_pred_nolearn$plus_1 - conf_beta_static_pred_nolearn_sd$plus_1)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
+        border=F,col=col_plus_overlay)
 
 dev.off()
 
@@ -1308,7 +1344,7 @@ question3$questionResp <- as.ordered(question3$questionResp)
 ordinal.reg <- clm(data=subset(question3,sub %in% Data_beta$sub),questionResp~group)
 anova(ordinal.reg)
 
-# Check participants understood the feedback
+# 4. Check participants understood the feedback
 question4 <- subset(questions,questionID==5)
 
 correct_response <- (grepl('3',question4$questionResp) | grepl('5',question4$questionResp)) & 
@@ -1330,6 +1366,13 @@ with(Data_beta,aggregate(sub,by=list(fb_understood,group),length_unique))
 fb_understood.test.beta <- glmer(fb_understood ~ group + (1|sub), data=Data_beta, family="binomial", control = glmercontrol)
 Anova(fb_understood.test.beta)
 
+Data_alpha$fb_understood <- 0
+Data_alpha[Data_alpha$sub %in% fb_understood_sub,]$fb_understood <- 1
+
+with(Data_alpha,aggregate(sub,by=list(fb_understood,group),length_unique))
+
+fb_understood.test.alpha <- glmer(fb_understood ~ group + (1|sub), data=Data_alpha, family="binomial", control = glmercontrol)
+Anova(fb_understood.test.alpha)
 
 
 # Plot Feedback -----------------------------------------------------------
