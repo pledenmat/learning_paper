@@ -16,6 +16,7 @@ ldc <- function(a,b,data){
 
 # Retrieve estimated parameters from each model ---------------------------------------------
 Data <- read.csv("alternating_fb_mod_trim.csv")
+Data <- subset(Data, manip == "beta")
 
 conditions <- sort(unique(Data$condition))
 difflevels <- sort(unique(Data$difflevel)) # Important to sort to match with drift order
