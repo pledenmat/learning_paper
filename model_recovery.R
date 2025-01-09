@@ -170,9 +170,7 @@ if (file.exists("par_model_recovery_new.csv")) {
   # Approximate the distribution of alpha and beta learning rate
   m_a <- fitdist(par_abest$eta_a/(max(par_abest$eta_a)+1), distr = 'beta')
   m_b <- fitdist(par_bbest$eta_b/(max(par_bbest$eta_b)+1), distr = 'beta')
-  # m_a2 <- fitdist(subset(par,model == "alpha")$eta_a/(max(subset(par,model == "alpha")$eta_a)+1), distr = 'beta')
-  # m_b2 <- fitdist(subset(par,model == "beta")$eta_b/(max(subset(par,model == "beta")$eta_b)+1), distr = 'beta')
-  
+
   eta_a <- rbeta(Nsub,shape1 = m_a$estimate[1], shape2 = m_a$estimate[2])*(max(par_abest$eta_a)+1)+1
   eta_b <- rbeta(Nsub,shape1 = m_b$estimate[1], shape2 = m_b$estimate[2])*(max(par_bbest$eta_b)+1)+1
   par$best <- NA
@@ -408,9 +406,6 @@ simDat_both$gen_model <- "both"
 simDat <- rbind(simDat_alpha,simDat_no,simDat_beta,simDat_both)
 for (s in 1:Nsub) {
   for (gen in models) {
-    if (gen %in% c("alpha","beta")) {
-      next
-    }
     print(paste("Running participant",s,"/",Nsub))
     temp_dat <- subset(simDat,sub==subs[s]&gen_model==gen)
     
@@ -531,29 +526,113 @@ with(par,aggregate(eta_b,list(model),summary))
 # Correct models retrieved
 with(fit_par,aggregate(eta_a,list(gen=gen_model,fit=fit_model),summary))
 with(fit_par,aggregate(eta_b,list(gen=gen_model,fit=fit_model),summary))
+with(fit_par_ev_known,aggregate(eta_a,list(gen=gen_model,fit=fit_model),mean))
+with(fit_par_ev_known,aggregate(eta_b,list(gen=gen_model,fit=fit_model),mean))
 # All participants were retrieved
 table(complete.cases(fit_par$a0))
+table(complete.cases(fit_par_ev_known$a0))
 
 bic_custom <- function(Residuals,k,n){
   return(log(n)*k+n*log(Residuals/n))
 }
 
+# Model comparison matrix - Evidence unknown
 fit_par$bic <- bic_custom(fit_par$cost_ldc,fit_par$Npar,fit_par$Ndata_point)
 mean_bic <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model),mean))
 mean_bic <- cast(mean_bic,fit~gen)
 
 bic_sub <- with(fit_par,aggregate(bic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
 bic_sub <- cast(bic_sub,gen+sub~fit)
-bic_sub <- bic_sub[complete.cases(bic_sub$alpha),]
 bic_sub$win_model <- sort(models)[apply(bic_sub[,3:6],1,which.min)]
-bic_sub$worst_model <- sort(models)[apply(bic_sub[,3:6],1,which.max)]
-with(bic_sub,aggregate(worst_model,list(gen=gen),table))
 with(bic_sub,aggregate(win_model,list(gen=gen),table))
-table(subset(bic_sub,gen=='both')$win_model)
-table(subset(bic_sub,gen=='alpha')$win_model)
-table(subset(bic_sub,gen=='beta')$win_model)
-table(subset(bic_sub,gen=='no')$win_model)
+round(table(subset(bic_sub,gen=="no")$win_model)/Nsub,3)
+round(table(subset(bic_sub,gen=="alpha")$win_model)/Nsub,3)
+round(table(subset(bic_sub,gen=="beta")$win_model)/Nsub,3)
+round(table(subset(bic_sub,gen=="both")$win_model)/Nsub,3)
 
+# Model comparison matrix - Evidence known
+fit_par_ev_known$bic <- bic_custom(fit_par_ev_known$cost_ldc,fit_par_ev_known$Npar,fit_par_ev_known$Ndata_point)
+mean_bic_ev_known <- with(fit_par_ev_known,aggregate(bic,by=list(fit=fit_model,gen=gen_model),mean))
+mean_bic_ev_known <- cast(mean_bic_ev_known,fit~gen)
+
+bic_sub_ev_known <- with(fit_par_ev_known,aggregate(bic,by=list(fit=fit_model,gen=gen_model,sub=sub),mean))
+bic_sub_ev_known <- cast(bic_sub_ev_known,gen+sub~fit)
+bic_sub_ev_known$win_model <- sort(models)[apply(bic_sub_ev_known[,3:6],1,which.min)]
+with(bic_sub_ev_known,aggregate(win_model,list(gen=gen),table))
+round(table(subset(bic_sub_ev_known,gen=="no")$win_model)/Nsub,3)
+round(table(subset(bic_sub_ev_known,gen=="alpha")$win_model)/Nsub,3)
+round(table(subset(bic_sub_ev_known,gen=="beta")$win_model)/Nsub,3)
+round(table(subset(bic_sub_ev_known,gen=="both")$win_model)/Nsub,3)
+
+
+# Parameter recovery ------------------------------------------------------
+
+genpar_dldc <- with(par,aggregate(cbind(eta_a,eta_b,a0,b0),list(model,sub),mean))
+names(genpar_dldc) <- c('model','sub','eta_a','eta_b','a0','b0')
+
+# Evidence unknown
+for (m in models) {
+  a0cor <- round(cor(subset(genpar_dldc,model==m)$a0,
+      subset(fit_par,gen_model==m&fit_model==m)$a0),3)
+  lim <- range(subset(genpar_dldc,model==m)$a0,subset(fit_par,gen_model==m&fit_model==m)$a0)
+  plot(subset(genpar_dldc,model==m)$a0, xlab=expression(paste("Generative ",alpha[0])), 
+      subset(fit_par,gen_model==m&fit_model==m)$a0, ylab=expression(paste("Fitted ",alpha[0])),
+      bty='n', main = paste(m,"learning model, r =",a0cor), xlim=lim, ylim=lim)
+  b0cor <- round(cor(subset(genpar_dldc,model==m)$b0,
+                     subset(fit_par,gen_model==m&fit_model==m)$b0),3)
+  lim <- range(subset(genpar_dldc,model==m)$b0,subset(fit_par,gen_model==m&fit_model==m)$b0)
+  plot(subset(genpar_dldc,model==m)$b0, xlab=expression(paste("Generative ",beta[0])), 
+       subset(fit_par,gen_model==m&fit_model==m)$b0, ylab=expression(paste("Fitted ",beta[0])),
+       bty='n', main = paste(m,"learning model, r =",b0cor), xlim=lim, ylim=lim)
+  if (m %in% c("alpha","both")) {
+    eta_acor <- round(cor(subset(genpar_dldc,model==m)$eta_a,
+                          subset(fit_par,gen_model==m&fit_model==m)$eta_a),3)
+    lim <- range(subset(genpar_dldc,model==m)$eta_a,subset(fit_par,gen_model==m&fit_model==m)$eta_a)
+    plot(subset(genpar_dldc,model==m)$eta_a, xlab=expression(paste("Generative ",eta[alpha])), 
+         subset(fit_par,gen_model==m&fit_model==m)$eta_a, ylab=expression(paste("Fitted ",eta[alpha])),
+         bty='n', main = paste(m,"learning model, r =",eta_acor), xlim=lim, ylim=lim)
+  }
+  if (m %in% c("beta","both")) {
+    eta_bcor <- round(cor(subset(genpar_dldc,model==m)$eta_b,
+                          subset(fit_par,gen_model==m&fit_model==m)$eta_b),3)
+    lim <- range(subset(genpar_dldc,model==m)$eta_b,subset(fit_par,gen_model==m&fit_model==m)$eta_b)
+    plot(subset(genpar_dldc,model==m)$eta_b, xlab=expression(paste("Generative ",eta[beta])), 
+         subset(fit_par,gen_model==m&fit_model==m)$eta_b, ylab=expression(paste("Fitted ",eta[beta])),
+         bty='n', main = paste(m,"learning model, r =",eta_bcor), xlim=lim, ylim=lim)
+  }
+}
+
+# Evidence known
+for (m in models) {
+  a0cor <- round(cor(subset(genpar_dldc,model==m)$a0,
+                     subset(fit_par_ev_known,gen_model==m&fit_model==m)$a0),3)
+  lim <- range(subset(genpar_dldc,model==m)$a0,subset(fit_par_ev_known,gen_model==m&fit_model==m)$a0)
+  plot(subset(genpar_dldc,model==m)$a0, xlab=expression(paste("Generative ",alpha[0])), 
+       subset(fit_par_ev_known,gen_model==m&fit_model==m)$a0, ylab=expression(paste("Fitted ",alpha[0])),
+       bty='n', main = paste(m,"learning model, r =",a0cor), xlim=lim, ylim=lim)
+  b0cor <- round(cor(subset(genpar_dldc,model==m)$b0,
+                     subset(fit_par_ev_known,gen_model==m&fit_model==m)$b0),3)
+  lim <- range(subset(genpar_dldc,model==m)$b0,subset(fit_par_ev_known,gen_model==m&fit_model==m)$b0)
+  plot(subset(genpar_dldc,model==m)$b0, xlab=expression(paste("Generative ",beta[0])), 
+       subset(fit_par_ev_known,gen_model==m&fit_model==m)$b0, ylab=expression(paste("Fitted ",beta[0])),
+       bty='n', main = paste(m,"learning model, r =",b0cor), xlim=lim, ylim=lim)
+  if (m %in% c("alpha","both")) {
+    eta_acor <- round(cor(subset(genpar_dldc,model==m)$eta_a,
+                          subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_a),3)
+    lim <- range(subset(genpar_dldc,model==m)$eta_a,subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_a)
+    plot(subset(genpar_dldc,model==m)$eta_a, xlab=expression(paste("Generative ",eta[alpha])), 
+         subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_a, ylab=expression(paste("Fitted ",eta[alpha])),
+         bty='n', main = paste(m,"learning model, r =",eta_acor), xlim=lim, ylim=lim)
+  }
+  if (m %in% c("beta","both")) {
+    eta_bcor <- round(cor(subset(genpar_dldc,model==m)$eta_b,
+                          subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_b),3)
+    lim <- range(subset(genpar_dldc,model==m)$eta_b,subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_b)
+    plot(subset(genpar_dldc,model==m)$eta_b, xlab=expression(paste("Generative ",eta[beta])), 
+         subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_b, ylab=expression(paste("Fitted ",eta[beta])),
+         bty='n', main = paste(m,"learning model, r =",eta_bcor), xlim=lim, ylim=lim)
+  }
+}
 
 # Remove from here ------------------------------------------------------------------
 
