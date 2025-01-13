@@ -131,6 +131,7 @@ for(i in 1:Nsub){
 }
 par(mar=c(5,4,4,2)+.1,mfrow=c(1,1))
 
+# Let's check how many participants were excluded from chance performance
 table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
 
 #' Filter out participants who reported only one confidence level 
@@ -139,6 +140,7 @@ conf_count <- with(Data,aggregate(cj,by=list(sub=sub),max_count))
 conf_count$x <- conf_count$x/Ntrials
 exclusion <- c(exclusion, unique(conf_count[conf_count$x>.9,"sub"]))
 
+# Let's check how many participants were excluded from lack of confidence variability
 table(unique(exclusion) %in% subset(Data,manip=='beta')$sub)
 
 Data <- subset(Data,!(sub %in% exclusion))
@@ -152,7 +154,6 @@ Data$response[Data$response==0] <- -1
 
 Data$condition <- as.factor(Data$condition)
 Data$difflevel <- as.factor(Data$difflevel)
-# Data$sub <- as.factor(Data$sub)
 subs <- unique(Data$sub); Nsub <- length(subs)
 
 names(Data)[1] <- "trial"
@@ -169,11 +170,8 @@ minus_first <- unique(subset(Data,phase==0&condition=='minus')$sub)
 Data[Data$sub %in% minus_first,"order"] <- "minus_first"
 
 setwd("..")
-Nskip <- 0
-Data <- subset(Data,RTconf<5 & rt<5 & rt>.2 & trial>=Nskip)
-Ntrials <- Ntrials - Nskip # Deprecated, was used as exploratory analysis
-write.csv(Data,file = "alternating_fb_mod_trim.csv",row.names = F)
-# write.csv(Data,file = "alternating_fb_mod.csv",row.names = F)
+Data <- subset(Data,RTconf<5 & rt<5 & rt>.2)
+write.csv(Data,file = "alternating_fb_mod.csv",row.names = F)
 
 Nphase_trial <- length(unique(Data$withinphasetrial))
 Nphase_block <- 18
@@ -189,120 +187,49 @@ Data_beta <- subset(Data,manip=='beta')
 Nalpha <- length(unique(Data_alpha$sub))
 Nbeta <- length(unique(Data_beta$sub))
 
-# Behavior analysis - Dynamics -----------------------------------------------------------
-if (stat_tests) {
-  control <- lmerControl(optimizer = "bobyqa")
-  glmercontrol <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 3e5))
-  
-  # Set contrast coding
-  options(contrasts=c("contr.sum","contr.poly"))
-  
-  # RT
-  rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
-  rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
-  anova(rt.int.alpha,rt.cond.alpha)
-  # Singular fit
-  rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
-  anova(rt.cond.alpha)
-  
-  rt.int.beta <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
-  rt.cond.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
-  anova(rt.int.beta,rt.cond.beta)
-  # Singular fit
-  rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
-  anova(rt.cond.beta)
-  
-  # Accuracy
-  acc.int.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
-  # Somehow even the simplest mixed model doesn't converge. Using regular Anova instead.
-  acc.alpha <- glm(cor~condition*difflevel*withinphasetrial,data = Data_alpha,family = binomial)
-  Anova(acc.alpha,type=3)
-  
-  
-  acc.int.beta <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_beta,family = binomial, control = glmercontrol)
-  # Same thing happened here. Using regular Anova again
-  acc.beta <- glm(cor~condition*difflevel*withinphasetrial,data = Data_beta,family = binomial)
-  Anova(acc.beta,type=3)
-  
-  
-  # Alpha
-  cj.int.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F, ,control = control); 
-  cj.cond.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,REML = F, ,control = control); 
-  anova(m.int,m.cond)
-  cj.cond.acc.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_alpha, REML = F, ,control = control)
-  anova(m.cond,m.cond.acc)
-  # Singular fit
-  # cj.cond.acc.difflevel.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
-  #                      data = Data_alpha, REML = F,control = control)
-  cj.cond.acc.interaction.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
-                                        data = Data_alpha, REML = F,control = control)
-  plot(resid(cj.cond.acc.interaction.alpha),Data_alpha$cj) #Linearity
-  leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
-  qqmath(cj.cond.acc.interaction.alpha) #Normality
-  anova(cj.cond.acc.interaction.alpha) #Results
-  cj.cond.interaction.alpha.cor <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
-                                        data = subset(Data_alpha,cor==1), REML = F,control = control)
-  anova(cj.cond.interaction.alpha.cor)
-  cj.cond.interaction.alpha.err <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
-                                        data = subset(Data_alpha,cor==0), REML = F,control = control)
-  anova(cj.cond.interaction.alpha.err)
-  
-  # Beta
-  cj.int.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F, ,control = control); 
-  cj.cond.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_beta,REML = F, ,control = control); 
-  anova(cj.int.beta,cj.cond.beta)
-  cj.cond.acc.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_beta, REML = F, ,control = control)
-  anova(cj.cond.beta,cj.cond.acc.beta)
-  # Singular fit
-  # cj.cond.acc.difflevel.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
-  #                      data = Data_beta, REML = F,control = control)
-  cj.cond.acc.interaction.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
-                                       data = Data_beta, REML = F,control = control)
-  anova(cj.cond.acc.beta,cj.cond.acc.interaction.beta)
-  plot(resid(cj.cond.acc.interaction.beta),Data_beta$cj) #Linearity
-  leveneTest(residuals(cj.cond.acc.interaction.beta) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
-  qqmath(cj.cond.acc.interaction.beta) #Normality
-  vif(cj.cond.acc.interaction.beta) # Multicollinearity
-  anova(cj.cond.acc.interaction.beta) #Results  
-}
-
-
 # Behavior analysis - Static ----------------------------------------------
 if (stat_tests) {
-  ## Replication of previous experiments (static effects)
-  # RT
+  ##' We first look at the overall effect of feedback on behavior to see if we 
+  ##' replicate the findings of previous studies.
+  
+  ## Reaction Times 
+  # Alpha experiment
   rt.int.alpha.static <- lmer(rt~condition*difflevel + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   rt.cond.alpha.static <- lmer(rt~condition*difflevel + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.int.alpha.static,rt.cond.alpha.static)
   # Singular fit
-  rt.cond.diff.alpha.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  # rt.cond.diff.alpha.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.cond.alpha.static)
   
+  # Beta experiment
   rt.int.beta.static <- lmer(rt~condition*difflevel + (1|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   rt.cond.beta.static <- lmer(rt~condition*difflevel + (condition|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.int.beta.static,rt.cond.beta.static)
   # Singular fit
-  rt.cond.diff.beta.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  # rt.cond.diff.beta.static <- lmer(rt~condition*difflevel + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.cond.beta.static)
   
-  # Accuracy
+  ## Accuracy
+  # Alpha experiment
   acc.int.alpha.static <- glmer(cor~condition*difflevel + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
   acc.cond.alpha.static <- glmer(cor~condition*difflevel + (condition|sub),data = Data_alpha,family = binomial, control = glmercontrol)
   anova(acc.int.alpha.static,acc.cond.alpha.static)
   acc.cond.diff.alpha.static <- glmer(cor~condition*difflevel + (condition+difflevel|sub),data = Data_alpha,family = binomial)
   Anova(acc.cond.alpha.static)
   
+  # Beta experiment
   acc.int.beta.static <- glmer(cor~condition*difflevel + (1|sub),data = Data_beta,family = binomial, control = glmercontrol)
   acc.cond.beta.static <- glmer(cor~condition*difflevel + (condition|sub),data = Data_beta,family = binomial, control = glmercontrol)
   anova(acc.int.beta.static,acc.cond.beta.static)
   acc.cond.diff.beta.static <- glmer(cor~condition*difflevel + (condition+difflevel|sub),data = Data_beta,family = binomial)
   Anova(acc.cond.beta.static)
   
-  # Alpha
-  cj.int.alpha.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_alpha,REML = F, ,control = control); 
-  cj.cond.alpha.static <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_alpha,REML = F, ,control = control); 
+  ## Confidence
+  # Alpha experiment
+  cj.int.alpha.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_alpha,REML = F,control = control); 
+  cj.cond.alpha.static <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_alpha,REML = F,control = control); 
   anova(m.int,m.cond)
-  cj.cond.acc.alpha.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_alpha, REML = F, ,control = control)
+  cj.cond.acc.alpha.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_alpha, REML = F,control = control)
   anova(m.cond,m.cond.acc)
   # Singular fit
   # cj.cond.acc.difflevel.alpha.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition + difflevel|sub),
@@ -322,11 +249,11 @@ if (stat_tests) {
                                data = subset(Data_alpha,cor==0), REML = F,control = control)
   anova(cj.cond.static.error)
   
-  # Beta
-  cj.int.beta.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_beta,REML = F, ,control = control); 
-  cj.cond.beta.static <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_beta,REML = F, ,control = control); 
+  # Beta experiment
+  cj.int.beta.static <- lmer(cj ~ condition*cor*difflevel + (1|sub),data = Data_beta,REML = F,control = control); 
+  cj.cond.beta.static <- lmer(cj ~ condition*cor*difflevel + (condition|sub),data = Data_beta,REML = F,control = control); 
   anova(cj.int.beta.static,cj.cond.beta.static)
-  cj.cond.acc.beta.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_beta, REML = F, ,control = control)
+  cj.cond.acc.beta.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition|sub),data = Data_beta, REML = F,control = control)
   anova(cj.cond.beta.static,cj.cond.acc.beta.static)
   # Singular fit
   # cj.cond.acc.difflevel.beta.static <- lmer(cj ~ condition*cor*difflevel + (cor + condition + difflevel|sub),
@@ -341,6 +268,88 @@ if (stat_tests) {
   post_hoc <- emmeans(cj.cond.acc.interaction.beta.static, ~ difflevel)
   pairs(post_hoc)
 }
+
+# Behavior analysis - Dynamics -----------------------------------------------------------
+if (stat_tests) {
+  control <- lmerControl(optimizer = "bobyqa")
+  glmercontrol <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 3e5))
+  
+  # Set contrast coding
+  options(contrasts=c("contr.sum","contr.poly"))
+  
+  ## Reaction Times
+  # Alpha experiment
+  rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  anova(rt.int.alpha,rt.cond.alpha)
+  # Singular fit
+  rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  anova(rt.cond.alpha)
+  
+  # Beta experiment
+  rt.int.beta <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  rt.cond.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  anova(rt.int.beta,rt.cond.beta)
+  # Singular fit
+  rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  anova(rt.cond.beta)
+  
+  ## Accuracy
+  # Alpha experiment
+  acc.int.alpha <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_alpha,family = binomial, control = glmercontrol)
+  # Somehow even the simplest mixed model doesn't converge. Using regular Anova instead.
+  acc.alpha <- glm(cor~condition*difflevel*withinphasetrial,data = Data_alpha,family = binomial)
+  Anova(acc.alpha,type=3)
+  
+  # Beta experiment
+  acc.int.beta <- glmer(cor~condition*difflevel*withinphasetrial + (1|sub),data = Data_beta,family = binomial, control = glmercontrol)
+  # Same thing happened here. Using regular Anova again
+  acc.beta <- glm(cor~condition*difflevel*withinphasetrial,data = Data_beta,family = binomial)
+  Anova(acc.beta,type=3)
+  
+  
+  ## Confidence
+  # Alpha experiment
+  cj.int.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F,control = control); 
+  cj.cond.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,REML = F,control = control); 
+  anova(m.int,m.cond)
+  cj.cond.acc.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_alpha, REML = F,control = control)
+  anova(m.cond,m.cond.acc)
+  # Singular fit
+  # cj.cond.acc.difflevel.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
+  #                      data = Data_alpha, REML = F,control = control)
+  cj.cond.acc.interaction.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                        data = Data_alpha, REML = F,control = control)
+  plot(resid(cj.cond.acc.interaction.alpha),Data_alpha$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.alpha) #Normality
+  anova(cj.cond.acc.interaction.alpha) #Results
+  cj.cond.interaction.alpha.cor <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
+                                        data = subset(Data_alpha,cor==1), REML = F,control = control)
+  anova(cj.cond.interaction.alpha.cor)
+  cj.cond.interaction.alpha.err <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
+                                        data = subset(Data_alpha,cor==0), REML = F,control = control)
+  anova(cj.cond.interaction.alpha.err)
+  
+  # Beta experiment
+  cj.int.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F,control = control); 
+  cj.cond.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_beta,REML = F,control = control); 
+  anova(cj.int.beta,cj.cond.beta)
+  cj.cond.acc.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_beta, REML = F,control = control)
+  anova(cj.cond.beta,cj.cond.acc.beta)
+  # Singular fit
+  # cj.cond.acc.difflevel.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
+  #                      data = Data_beta, REML = F,control = control)
+  cj.cond.acc.interaction.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
+                                       data = Data_beta, REML = F,control = control)
+  anova(cj.cond.acc.beta,cj.cond.acc.interaction.beta)
+  plot(resid(cj.cond.acc.interaction.beta),Data_beta$cj) #Linearity
+  leveneTest(residuals(cj.cond.acc.interaction.beta) ~ Data_beta$cor*Data_beta$condition*Data_beta$difflevel) #Homogeneity of variance
+  qqmath(cj.cond.acc.interaction.beta) #Normality
+  vif(cj.cond.acc.interaction.beta) # Multicollinearity
+  anova(cj.cond.acc.interaction.beta) #Results  
+}
+
 
 # Retrieve fits -----------------------------------------------------------
 # Some fixed arguments
@@ -404,7 +413,7 @@ for (s in 1:length(subs)) {
   temp_dat <- subset(Data,sub==subs[s])
   
   for (model in models) {
-    ldc_file <- paste0('ldc_nn/trim/',model,'_learn/ldcfit_',subs[s],'.Rdata')
+    ldc_file <- paste0('ldc_nn/behavior_fit/',model,'_learn/ldcfit_',subs[s],'.Rdata')
     if (file.exists(ldc_file)) {
       load(ldc_file)
       par[par$sub==subs[s]&par$model==model,"a0"] <- ldc.results$optim$bestmem[1]
@@ -538,11 +547,11 @@ if ("no" %in% model_bic$best) {
   model_bic[model_bic$best != 'no',"best"] <- "Learning"
   model_bic[model_bic$best == 'no',"best"] <- "No learning"
 }
-best_model <- table(subset(model_bic,manip=='beta')$best)/Nbeta*100
+best_model <- table(subset(model_bic,manip=='beta')$best)
 bp <- barplot(matrix(best_model), las=2, xlab="",ylab = "",horiz=T, 
-              xaxt='n',xlim = c(0,60), beside =T, names.arg = c("", ""), border = NA)
-title(xlab = "% participants", ylab = "", line = 2.5)
-axis(1, seq(0,60,10), seq(0,60,10))
+              xaxt='n',xlim = c(0,35), beside =T, names.arg = c("", ""), border = NA)
+title(xlab = "Participant count", ylab = "", line = 2.5)
+axis(1, seq(0,35,5), seq(0,35,5))
 # Add model names under each bar
 dev.off()
 par(mar=c(5,4,4,2)+.1)
@@ -602,7 +611,7 @@ names(pred_conf_sub_both_learn) <- c("trial","cor","sub","cj")
 pred_conf_sub_no_learn <- with(Data,aggregate(cj_pred_no_learn,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_no_learn) <- c("trial","cor","sub","cj")
 
-trials <- data.frame(trial=rep((0:(Ntrials-1))+Nskip,each=2),
+trials <- data.frame(trial=rep((0:(Ntrials-1)),each=2),
                      cor=c(0,1),sub=rep(subs,each=Ntrials*2))
 
 cj_ma <- merge(trial_conf_sub,trials,all=T)
@@ -1280,7 +1289,8 @@ questions[questions$questionResp=="['d']",]$questionResp <- 1
 questions[questions$questionResp=="['f']",]$questionResp <- 2
 questions[questions$questionResp=="['g']",]$questionResp <- 3
 questions[questions$questionResp=="['h']",]$questionResp <- 4
-questions[questions$questionResp=="['j']",]$questionResp <- 5
+# Better way to replace values because does not get an error if value to replace is not found
+questions$questionResp <- ifelse(questions$questionResp=="['j']",5,questions$questionResp) 
 questions$group <- as.factor(questions$group)
 questions$manip <- as.factor(questions$manip)
 
@@ -1437,39 +1447,6 @@ legend("bottomright",border=F,legend=c("High","Low"),lty=1,horiz=F,
 
 dev.off()
 
-# Remove later ------------------------------------------------------------
-# Plot model comparison in BIC instead of delta BIC ----
-go_to("plots")
-go_to("paper")
-jpeg("model_comparison_bic.jpg",width=19,height=6,units = 'cm',res=600, pointsize = 10)
-par(mfrow=c(1,2))
-par(mar=c(4,5.5,2,0))
-mean_bic_nolearn <- subset(mean_bic,model=="no" & manip=="beta")$x
-mean_bic_learn <- min(subset(mean_bic,model!="no" & manip=="beta")$x) 
-range_bic_learn <- range(subset(mean_bic,model!="no" & manip=="beta")$delta) 
-bp <- barplot(matrix(c(mean_bic_learn,mean_bic_nolearn)), las = 2, horiz=T,xaxt='n',
-              names.arg = c("Learning", "No learning"), border = NA, beside = T,
-              xlab="",ylab = "",xlim = c(-8710,-8690))
-title(xlab = "BIC", ylab = "", line = 2.5)
-axis(1, seq(-8710,-8690,5), seq(-8710,-8690,5))
-# arrows(mean_bic_learn,bp[1], 
-#        range_bic_learn[2],bp[1],angle=90,length=0.1)
-
-# Plot N best models
-par(mar=c(4,3.5,2,2))
-if ("no" %in% model_bic$best) {
-  model_bic[model_bic$best != 'no',"best"] <- "Learning"
-  model_bic[model_bic$best == 'no',"best"] <- "No learning"
-}
-best_model <- table(subset(model_bic,manip=='beta')$best)/Nbeta*100
-bp <- barplot(matrix(best_model), las=2, xlab="",ylab = "",horiz=T, 
-              xaxt='n',xlim = c(0,60), beside =T, names.arg = c("", ""), border = NA)
-title(xlab = "% participants", ylab = "", line = 2.5)
-axis(1, seq(0,60,10), seq(0,60,10))
-# Add model names under each bar
-dev.off()
-par(mar=c(5,4,4,2)+.1)
-par(mfrow=c(1,1))
 # Plot behavior results for alpha experiment ------------------------------
 # Behavior results figure layout ----------------------------------------------------
 diff_order <- c('hard','medium','easy')

@@ -93,7 +93,7 @@ NumericVector combine_input(NumericMatrix x, NumericVector w, bool binning = fal
 // Define main function to train the model
 // [[Rcpp::export]]
 List train_model(NumericMatrix x, NumericVector w0, NumericVector y, NumericVector y_err, double eta = 0.1,
-                 std::string error_type1 = "cross-entropy", int Nupdate_per_trial = 1000,
+                 std::string error_type1 = "cross-entropy",
                  bool verbose = false, bool trace = false, bool binning = false, 
                  int nbin = 6.0, std::string cost = "per_trial",
                  NumericMatrix x_err = NumericMatrix(), int Nsim_error = 1000,
@@ -140,7 +140,7 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, NumericVect
 // [[Rcpp::export]]
 List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, NumericVector y_err, double eta_a = 0.1,
                  double eta_b = 0.1, std::string error_type1 = "cross-entropy", 
-                 int Nupdate_per_trial = 1000, bool verbose = false, bool trace = false, 
+                 bool verbose = false, bool trace = false, 
                  bool binning = false,int nbin = 6.0, std::string cost = "per_trial",
                  NumericMatrix x_err = NumericMatrix(), int Nsim_error = 1000,
                  std::string error_type2 = "mse",int Nskip_error = 0) {
