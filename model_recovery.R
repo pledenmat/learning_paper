@@ -633,356 +633,87 @@ for (m in models) {
          bty='n', main = paste(m,"learning model, r =",eta_bcor), xlim=lim, ylim=lim)
   }
 }
+# Nicely plot parameter recovery for the full learning model ---------------------
 
-# Remove from here ------------------------------------------------------------------
+# Evidence unknown --------------------------------------------------------
+m <- "both"
+jpeg(paste("recovery",m,".jpg",sep=""), width=14, height=14, units = 'cm', res = 600)
+par(mfrow=c(2,2), mar=c(4,4.5,2,1))
 
-plot(subset(bic_sub,gen=='beta')$beta~subset(bic_sub,gen=="beta")$alpha)
-test <- subset(fit_par,sub %in% high_lr & gen_model=='both')
-bic <- with(mean_bic,aggregate(delta,list(model),mean))
-names(bic) <- c('model','delta')
-for (m in models) {
-  res <- cor(subset(bic_sub,gen==m)[,3:6],method='pearson')
-  print(m)
-  print(round(res,2))
+a0cor <- round(cor(subset(genpar_dldc,model==m)$a0,
+                   subset(fit_par,gen_model==m&fit_model==m)$a0),3)
+lim <- range(subset(genpar_dldc,model==m)$a0,subset(fit_par,gen_model==m&fit_model==m)$a0)
+plot(subset(genpar_dldc,model==m)$a0, xlab=expression(paste("Generative ",alpha[0])), 
+     subset(fit_par,gen_model==m&fit_model==m)$a0, ylab=expression(paste("Fitted ",alpha[0])),
+     bty='n', main = paste("r =",a0cor), xlim=lim, ylim=lim, yaxt='n')
+axis(2,las = 2)
+b0cor <- round(cor(subset(genpar_dldc,model==m)$b0,
+                   subset(fit_par,gen_model==m&fit_model==m)$b0),3)
+lim <- range(subset(genpar_dldc,model==m)$b0,subset(fit_par,gen_model==m&fit_model==m)$b0)
+plot(subset(genpar_dldc,model==m)$b0, xlab=expression(paste("Generative ",beta[0])), 
+     subset(fit_par,gen_model==m&fit_model==m)$b0, ylab=expression(paste("Fitted ",beta[0])),
+     bty='n', main = paste("r =",b0cor), xlim=lim, ylim=lim, yaxt = 'n')
+axis(2,las = 2)
+if (m %in% c("alpha","both")) {
+  eta_acor <- round(cor(subset(genpar_dldc,model==m)$eta_a,
+                        subset(fit_par,gen_model==m&fit_model==m)$eta_a),3)
+  lim <- range(subset(genpar_dldc,model==m)$eta_a,subset(fit_par,gen_model==m&fit_model==m)$eta_a)
+  plot(subset(genpar_dldc,model==m)$eta_a, xlab=expression(paste("Generative ",eta[alpha])), 
+       subset(fit_par,gen_model==m&fit_model==m)$eta_a, ylab=expression(paste("Fitted ",eta[alpha])),
+       bty='n', main = paste("r =",eta_acor), xlim=lim, ylim=lim, yaxt = 'n')
+  axis(2,las = 2)
 }
-par$max_lr <- apply(par[,c('eta_a','eta_b')],1,max)
-fit_par$max_gen_lr <- NA
-fit_par$bic_diff_no <- fit_par$bic
-for (s in subs) {
-  for (gen in models) {
-    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'bic_diff_no'] <- 
-      fit_par[fit_par$sub==s&fit_par$gen_model==gen,'bic_diff_no'] - 
-      fit_par[fit_par$sub==s&fit_par$gen_model==gen&fit_par$fit_model=='no','bic']
-    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'max_gen_lr'] <- mean(subset(par,sub==s&model==gen)$max_lr)
-    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'gen_eta_a'] <- mean(subset(par,sub==s&model==gen)$eta_a)
-    fit_par[fit_par$sub==s&fit_par$gen_model==gen,'gen_eta_b'] <- mean(subset(par,sub==s&model==gen)$eta_b)
-  }
-}
-fit_par$diff_eta_a <- abs(fit_par$eta_a - fit_par$gen_eta_a)
-fit_par$diff_eta_b <- abs(fit_par$eta_b - fit_par$gen_eta_b)
-for (fit in models) {
-  # temp_par <- subset(fit_par,fit_model==fit)
-  # plot(temp_par$max_gen_lr,temp_par$bic_diff_no,xlab = "Learning rate", ylab = "BIC diff with no learning model",
-  #      bty='n', main = fit)
-  # abline(h=0)
-  # print(cor.test(temp_par$max_gen_lr,temp_par$bic_diff_no))
-  # abline(lm(temp_par$max_lr~temp_par$bic_diff_no)$coef)
-  temp_par_matched <- subset(fit_par,fit_model==fit&gen_model==fit)
-  # print(cor.test(temp_par_matched$eta_a,temp_par_matched$gen_eta_a))
-  print(cor.test(temp_par_matched$diff_eta_b,temp_par_matched$bic_diff_no))
-}
-
-# Compute rolling mean per subject ----------------------------------------
-simDat_both_old <- read.csv("new_simDat_both_model_recov.csv")
-simDat_alpha_old <- read.csv("new_simDat_alpha_model_recov.csv")
-simDat_beta_old <- read.csv("new_simDat_beta_model_recov.csv")
-n <- 25 # Rolling mean window size
-n_err <- 25
-Ntrials <- 756
-Nskip <- 0
-
-trial_conf_sub <- with(simDat_both,aggregate(cj,by=list(trial,cor,sub),mean))
-names(trial_conf_sub) <- c("trial","cor","sub","cj")
-
-trial_conf_sub_old <- with(simDat_both_old,aggregate(cj,by=list(trial,cor,sub),mean))
-names(trial_conf_sub_old) <- c("trial","cor","sub","cj")
-
-trial_conf_alpha <- with(simDat_alpha_old,aggregate(cj,by=list(trial,cor,sub),mean))
-names(trial_conf_alpha) <- c("trial","cor","sub","cj")
-
-trial_conf_beta <- with(simDat_beta_old,aggregate(cj,by=list(trial,cor,sub),mean))
-names(trial_conf_beta) <- c("trial","cor","sub","cj")
-
-trials <- data.frame(trial=rep((1:(Ntrials))+Nskip,each=2),
-                     cor=c(0,1),sub=rep(subs,each=Ntrials*2))
-
-cj_ma <- merge(trial_conf_sub,trials,all=T)
-cj_ma_old <- merge(trial_conf_sub_old,trials,all=T)
-cj_ma_alpha <- merge(trial_conf_alpha,trials,all=T)
-cj_ma_beta <- merge(trial_conf_beta,trials,all=T)
-
-ma <- function(x,n,names){
-  return(rollapply(x[,names], width=n, FUN=function(x) mean(x, na.rm=TRUE),partial=TRUE, align="center"))
-}
-for (s in subs) {
-  print(s)
-  cj_ma[cj_ma$sub==s&cj_ma$cor==0,"cj"] <- ma(subset(cj_ma,sub==s&cor==0),n_err,"cj")
-  cj_ma[cj_ma$sub==s&cj_ma$cor==1,"cj"] <- ma(subset(cj_ma,sub==s&cor==1),n,"cj")
-  cj_ma_old[cj_ma_old$sub==s&cj_ma_old$cor==0,"cj"] <- ma(subset(cj_ma_old,sub==s&cor==0),n_err,"cj")
-  cj_ma_old[cj_ma_old$sub==s&cj_ma_old$cor==1,"cj"] <- ma(subset(cj_ma_old,sub==s&cor==1),n,"cj")
-  cj_ma_alpha[cj_ma_alpha$sub==s&cj_ma_alpha$cor==0,"cj"] <- ma(subset(cj_ma_alpha,sub==s&cor==0),n_err,"cj")
-  cj_ma_alpha[cj_ma_alpha$sub==s&cj_ma_alpha$cor==1,"cj"] <- ma(subset(cj_ma_alpha,sub==s&cor==1),n,"cj")
-  cj_ma_beta[cj_ma_beta$sub==s&cj_ma_beta$cor==0,"cj"] <- ma(subset(cj_ma_beta,sub==s&cor==0),n_err,"cj")
-  cj_ma_beta[cj_ma_beta$sub==s&cj_ma_beta$cor==1,"cj"] <- ma(subset(cj_ma_beta,sub==s&cor==1),n,"cj")
+if (m %in% c("beta","both")) {
+  eta_bcor <- round(cor(subset(genpar_dldc,model==m)$eta_b,
+                        subset(fit_par,gen_model==m&fit_model==m)$eta_b),3)
+  lim <- range(subset(genpar_dldc,model==m)$eta_b,subset(fit_par,gen_model==m&fit_model==m)$eta_b)
+  plot(subset(genpar_dldc,model==m)$eta_b, xlab=expression(paste("Generative ",eta[beta])), 
+       subset(fit_par,gen_model==m&fit_model==m)$eta_b, ylab=expression(paste("Fitted ",eta[beta])),
+       bty='n', main = paste("r =",eta_bcor), xlim=lim, ylim=lim, yaxt = 'n')
+  axis(2,las = 2)
 }
 
-# Plot traces old simdat to assess whether correct parameters were used ---------------------------------------------------
-
-width <- 16 # Plot size expressed in cm
-height <- 10
-
-se <- function(x,na.rm=F) sd(x,na.rm=na.rm)/sqrt(length(x))
-
-title_line <- -2
-cex.title <- 3
-cex.lab <- 3
-cex.axis <- 2
-cex.legend <- 2
-go_to("plots")
-go_to("alternating_fb")
-go_to("trim")
-jpeg(filename = "sim_model_recovery.jpg",units = 'cm',width = 42,height = 30,res=300)
-
-# Plot ExpA trace
-plus_first <- unique(subset(simDat_both,switch==0&condition=='plus')$sub)
-minus_first <- unique(subset(simDat_both,switch==0&condition=='minus')$sub)
-Ntrials_phase <- Ntrials/length(unique(simDat_both$switch))
-
-conf_min <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_min) <- c("trial","cor","cj")
-conf_min_se <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_min_se) <- c("trial","cor","cj")
-conf_plus <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_plus) <- c("trial","cor","cj")
-conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_plus_se) <- c("trial","cor","cj")
+dev.off()
+par(mfrow=c(1,1), mar = c(5,4,4,2)+.1)
 
 
-xlen <- dim(conf_plus)[1]/2
-conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-conf_min_cor <- subset(conf_min,cor==1)$cj
-conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-conf_plus_err <- subset(conf_plus,cor==0)$cj
-conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-conf_plus_cor <- subset(conf_plus,cor==1)$cj
-conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
+# Evidence known ----------------------------------------------------------
+m <- "both"
+jpeg(paste("recovery",m,"_evidence_known.jpg",sep=""), width=14, height=14, units = 'cm', res = 600)
+par(mfrow=c(2,2), mar=c(4,4.5,2,1))
 
-plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),
-     main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-     xlab = "Trial", ylab = "Confidence")
-abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_min_cor,col=BLUE)
-polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_plus_err,lty = 2,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-lines(conf_plus_cor,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",alpha," feedback first")), 
-                                              expression(paste("low ",alpha," feedback first"))),
-       col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-legend(cex=cex.legend,"bottomright",legend = c("Correct trials", "Error trials"),
-       bty = 'n', lty = c(1,2))
+
+a0cor <- round(cor(subset(genpar_dldc,model==m)$a0,
+                   subset(fit_par_ev_known,gen_model==m&fit_model==m)$a0),3)
+lim <- range(subset(genpar_dldc,model==m)$a0,subset(fit_par_ev_known,gen_model==m&fit_model==m)$a0)
+plot(subset(genpar_dldc,model==m)$a0, xlab=expression(paste("Generative ",alpha[0])), 
+     subset(fit_par_ev_known,gen_model==m&fit_model==m)$a0, ylab=expression(paste("Fitted ",alpha[0])),
+     bty='n', main = paste(m,"learning model, r =",a0cor), xlim=lim, ylim=lim)
+b0cor <- round(cor(subset(genpar_dldc,model==m)$b0,
+                   subset(fit_par_ev_known,gen_model==m&fit_model==m)$b0),3)
+lim <- range(subset(genpar_dldc,model==m)$b0,subset(fit_par_ev_known,gen_model==m&fit_model==m)$b0)
+plot(subset(genpar_dldc,model==m)$b0, xlab=expression(paste("Generative ",beta[0])), 
+     subset(fit_par_ev_known,gen_model==m&fit_model==m)$b0, ylab=expression(paste("Fitted ",beta[0])),
+     bty='n', main = paste(m,"learning model, r =",b0cor), xlim=lim, ylim=lim)
+if (m %in% c("alpha","both")) {
+  eta_acor <- round(cor(subset(genpar_dldc,model==m)$eta_a,
+                        subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_a),3)
+  lim <- range(subset(genpar_dldc,model==m)$eta_a,subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_a)
+  plot(subset(genpar_dldc,model==m)$eta_a, xlab=expression(paste("Generative ",eta[alpha])), 
+       subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_a, ylab=expression(paste("Fitted ",eta[alpha])),
+       bty='n', main = paste(m,"learning model, r =",eta_acor), xlim=lim, ylim=lim)
+}
+if (m %in% c("beta","both")) {
+  eta_bcor <- round(cor(subset(genpar_dldc,model==m)$eta_b,
+                        subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_b),3)
+  lim <- range(subset(genpar_dldc,model==m)$eta_b,subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_b)
+  plot(subset(genpar_dldc,model==m)$eta_b, xlab=expression(paste("Generative ",eta[beta])), 
+       subset(fit_par_ev_known,gen_model==m&fit_model==m)$eta_b, ylab=expression(paste("Fitted ",eta[beta])),
+       bty='n', main = paste(m,"learning model, r =",eta_bcor), xlim=lim, ylim=lim)
+}
 
 dev.off()
-
-# Plot ExpB trace 
-plus_first <- unique(subset(Data_beta,phase==0&condition=='plus')$sub)
-minus_first <- unique(subset(Data_beta,phase==0&condition=='minus')$sub)
-
-conf_min <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_min) <- c("trial","cor","cj")
-conf_min_se <- with(subset(cj_ma,sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_min_se) <- c("trial","cor","cj")
-conf_plus <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_plus) <- c("trial","cor","cj")
-conf_plus_se <- with(subset(cj_ma,sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_plus_se) <- c("trial","cor","cj")
-
-xlen <- dim(conf_plus)[1]/2
-conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-conf_min_cor <- subset(conf_min,cor==1)$cj
-conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-conf_plus_err <- subset(conf_plus,cor==0)$cj
-conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-conf_plus_cor <- subset(conf_plus,cor==1)$cj
-conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-
-plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),     
-     main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-     xlab = "Trial", ylab = "Confidence")
-abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_min_cor,col=BLUE)
-polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_plus_err,lty = 2,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-lines(conf_plus_cor,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",beta," feedback")), expression(paste("low ",beta," feedback"))),
-       col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-dev.off()
-jpeg(filename = "sim_model_recovery_old.jpg",units = 'cm',width = 42,height = 30,res=300)
-
-# Plot ExpA trace
-plus_first <- unique(subset(simDat_alpha_old,switch==0&condition=='plus')$sub)
-minus_first <- unique(subset(simDat_alpha_old,switch==0&condition=='minus')$sub)
-Ntrials_phase <- Ntrials/length(unique(simDat_both_old$switch))
-
-conf_min <- with(subset(cj_ma_old,sub %in% minus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_min) <- c("trial","cor","cj")
-conf_min_se <- with(subset(cj_ma_old,sub %in% minus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_min_se) <- c("trial","cor","cj")
-conf_plus <- with(subset(cj_ma_old,sub %in% plus_first),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_plus) <- c("trial","cor","cj")
-conf_plus_se <- with(subset(cj_ma_old,sub %in% plus_first),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_plus_se) <- c("trial","cor","cj")
+par(mfrow=c(1,1), mar = c(5,4,4,2)+.1)
 
 
-xlen <- dim(conf_plus)[1]/2
-conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-conf_min_cor <- subset(conf_min,cor==1)$cj
-conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-conf_plus_err <- subset(conf_plus,cor==0)$cj
-conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-conf_plus_cor <- subset(conf_plus,cor==1)$cj
-conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-
-plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),
-     main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-     xlab = "Trial", ylab = "Confidence")
-abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_min_cor,col=BLUE)
-polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_plus_err,lty = 2,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-lines(conf_plus_cor,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",alpha," feedback first")), 
-                                              expression(paste("low ",alpha," feedback first"))),
-       col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-legend(cex=cex.legend,"bottomright",legend = c("Correct trials", "Error trials"),
-       bty = 'n', lty = c(1,2))
-
-dev.off()
-# Plot trace for simulations from alpha model (best vs no best) --------
-jpeg(filename = "sim_model_recovery_alpha_not_best.jpg",units = 'cm',width = 42,height = 30,res=300)
-
-# Plot ExpA trace
-plus_first <- unique(subset(simDat_alpha_old,switch==0&condition=='plus')$sub)
-minus_first <- unique(subset(simDat_alpha_old,switch==0&condition=='minus')$sub)
-Ntrials_phase <- Ntrials/length(unique(simDat_both_old$switch))
-
-conf_min <- with(subset(cj_ma_alpha,sub %in% minus_first & !(sub %in% alpha_best)),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_min) <- c("trial","cor","cj")
-conf_min_se <- with(subset(cj_ma_alpha,sub %in% minus_first&!(sub %in% alpha_best)),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_min_se) <- c("trial","cor","cj")
-conf_plus <- with(subset(cj_ma_alpha,sub %in% plus_first& !(sub %in% alpha_best)),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_plus) <- c("trial","cor","cj")
-conf_plus_se <- with(subset(cj_ma_alpha,sub %in% plus_first& !(sub %in% alpha_best)),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_plus_se) <- c("trial","cor","cj")
-
-
-xlen <- dim(conf_plus)[1]/2
-conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-conf_min_cor <- subset(conf_min,cor==1)$cj
-conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-conf_plus_err <- subset(conf_plus,cor==0)$cj
-conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-conf_plus_cor <- subset(conf_plus,cor==1)$cj
-conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-
-plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),
-     main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-     xlab = "Trial", ylab = "Confidence")
-abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_min_cor,col=BLUE)
-polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_plus_err,lty = 2,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-lines(conf_plus_cor,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",alpha," feedback first")), 
-                                              expression(paste("low ",alpha," feedback first"))),
-       col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-legend(cex=cex.legend,"bottomright",legend = c("Correct trials", "Error trials"),
-       bty = 'n', lty = c(1,2))
-
-dev.off()
-
-# Same with alpha ---------------------------------------------------------
-
-jpeg(filename = "sim_model_recovery_beta_not_best.jpg",units = 'cm',width = 42,height = 30,res=300)
-
-# Plot ExpA trace
-plus_first <- unique(subset(simDat_beta_old,switch==0&condition=='plus')$sub)
-minus_first <- unique(subset(simDat_beta_old,switch==0&condition=='minus')$sub)
-Ntrials_phase <- Ntrials/length(unique(simDat_both_old$switch))
-
-conf_min <- with(subset(cj_ma_beta,sub %in% minus_first & !(sub %in% beta_best)),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_min) <- c("trial","cor","cj")
-conf_min_se <- with(subset(cj_ma_beta,sub %in% minus_first&!(sub %in% beta_best)),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_min_se) <- c("trial","cor","cj")
-conf_plus <- with(subset(cj_ma_beta,sub %in% plus_first& !(sub %in% beta_best)),aggregate(cj, by=list(trial,cor),mean,na.rm=T))
-names(conf_plus) <- c("trial","cor","cj")
-conf_plus_se <- with(subset(cj_ma_beta,sub %in% plus_first& !(sub %in% beta_best)),aggregate(cj, by=list(trial,cor),se,na.rm=T))
-names(conf_plus_se) <- c("trial","cor","cj")
-
-
-xlen <- dim(conf_plus)[1]/2
-conf_min_err <- subset(conf_min,cor==0)$cj
-conf_min_err_se <- subset(conf_min_se,cor==0)$cj
-conf_min_cor <- subset(conf_min,cor==1)$cj
-conf_min_cor_se <- subset(conf_min_se,cor==1)$cj
-conf_plus_err <- subset(conf_plus,cor==0)$cj
-conf_plus_err_se <- subset(conf_plus_se,cor==0)$cj
-conf_plus_cor <- subset(conf_plus,cor==1)$cj
-conf_plus_cor_se <- subset(conf_plus_se,cor==1)$cj
-
-plot(conf_min_err,bty='n',lty = 2,type='l',col=BLUE,ylim=c(.5,.9),
-     main= NULL,cex.lab = cex.lab,cex.axis=cex.axis,
-     xlab = "Trial", ylab = "Confidence")
-abline(v=seq(Ntrials_phase,Ntrials-1,Ntrials_phase),lty=2,col='lightgrey')
-polygon(c(1:xlen,xlen:1),c(conf_min_err + conf_min_err_se,(conf_min_err - conf_min_err_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_min_cor,col=BLUE)
-polygon(c(1:xlen,xlen:1),c(conf_min_cor + conf_min_cor_se,(conf_min_cor - conf_min_cor_se)[xlen:1]),
-        border=F,col=rgb(0,114,178,51,maxColorValue = 255))
-lines(conf_plus_err,lty = 2,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_err + conf_plus_err_se,(conf_plus_err - conf_plus_err_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-lines(conf_plus_cor,col=VERMILLION)
-polygon(c(1:xlen,xlen:1),c(conf_plus_cor + conf_plus_cor_se,(conf_plus_cor - conf_plus_cor_se)[xlen:1]),
-        border=F,col=rgb(213,94,0,51,maxColorValue = 255))
-legend(cex=cex.legend,"bottomleft",legend = c(expression(paste("high ",alpha," feedback first")), 
-                                              expression(paste("low ",alpha," feedback first"))),
-       col = c(VERMILLION,BLUE), bty = 'n', lty = c(1,1))
-legend(cex=cex.legend,"bottomright",legend = c("Correct trials", "Error trials"),
-       bty = 'n', lty = c(1,2))
-
-dev.off()
-
-p <- ggplot(subset(par,model=='alpha'), aes(x=best, y=eta_a, fill=best)) + # fill=name allow to automatically dedicate a color for each group
-  geom_violin()
-p
-with(subset(par,model=='alpha'),aggregate(eta_a,list(best),summary))
-
-# Plot learning rate according to which model was best --------------------
-
-p <- ggplot(subset(par,model=='beta'), aes(x=best, y=eta_b, fill=best)) + # fill=name allow to automatically dedicate a color for each group
-  geom_violin()
-p
-with(subset(par,model=='beta'),aggregate(eta_b,list(best),summary))
 
