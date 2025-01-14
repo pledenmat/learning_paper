@@ -97,7 +97,7 @@ List train_model(NumericMatrix x, NumericVector w0, NumericVector y, NumericVect
                  bool verbose = false, bool trace = false, bool binning = false, 
                  int nbin = 6.0, std::string cost = "per_trial",
                  NumericMatrix x_err = NumericMatrix(), int Nsim_error = 1000,
-                 std::string error_type2 = "mse",int Nskip_error = 0) {
+                 std::string error_type2 = "mse") {
   int ntrain = y.size();
   double err = 0;
   NumericVector w = clone(w0);
@@ -143,7 +143,7 @@ List train_model_eta_sep(NumericMatrix x, NumericVector w0, NumericVector y, Num
                  bool verbose = false, bool trace = false, 
                  bool binning = false,int nbin = 6.0, std::string cost = "per_trial",
                  NumericMatrix x_err = NumericMatrix(), int Nsim_error = 1000,
-                 std::string error_type2 = "mse",int Nskip_error = 0) {
+                 std::string error_type2 = "mse") {
   int ntrain = y.size();
   double err = 0;
   NumericVector w = clone(w0);

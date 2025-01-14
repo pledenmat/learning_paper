@@ -326,10 +326,10 @@ simDat_alpha$RTconf <- simDat_alpha$rt2 - simDat_alpha$rt
 simDat_no$RTconf <- simDat_no$rt2 - simDat_no$rt 
 simDat_beta$RTconf <- simDat_beta$rt2 - simDat_beta$rt 
 simDat_both$RTconf <- simDat_both$rt2 - simDat_both$rt 
-write.csv(simDat_alpha,"new_simDat_alpha_model_recovery.csv",row.names = F)
-write.csv(simDat_both,"new_simDat_both_model_recovery.csv",row.names = F)
-write.csv(simDat_beta,"new_simDat_beta_model_recovery.csv",row.names = F)
-write.csv(simDat_no,"new_simDat_no.csv",row.names = F)
+write.csv(simDat_alpha,"simDat_alpha_model_recovery.csv",row.names = F)
+write.csv(simDat_both,"simDat_both_model_recovery.csv",row.names = F)
+write.csv(simDat_beta,"simDat_beta_model_recovery.csv",row.names = F)
+write.csv(simDat_no,"simDat_no.csv",row.names = F)
 # Retrieve fits --------------------------------------------------------------
 
 models <- c("no","alpha","beta","both")

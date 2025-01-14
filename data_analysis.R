@@ -155,6 +155,8 @@ Data$response[Data$response==0] <- -1
 Data$condition <- as.factor(Data$condition)
 Data$difflevel <- as.factor(Data$difflevel)
 subs <- unique(Data$sub); Nsub <- length(subs)
+conditions <- sort(unique(Data$condition))
+difflevels <- sort(unique(Data$difflevel))
 
 names(Data)[1] <- "trial"
 
@@ -171,26 +173,30 @@ Data[Data$sub %in% minus_first,"order"] <- "minus_first"
 
 setwd("..")
 Data <- subset(Data,RTconf<5 & rt<5 & rt>.2)
-write.csv(Data,file = "alternating_fb_mod.csv",row.names = F)
+write.csv(Data,file = "alternating_fb_aggregated_data.csv",row.names = F)
 
 Nphase_trial <- length(unique(Data$withinphasetrial))
 Nphase_block <- 18
 Data$phase_block <-  Data$withinphasetrial %/% (Nphase_trial/Nphase_block)
 Data$phase_block <- as.factor(Data$phase_block)
 
-# Data$cor <- as.factor(Data$cor)
-
 Data$cj_integer <- Data$cj*6
 
 Data_alpha <- subset(Data,manip=='alpha')
 Data_beta <- subset(Data,manip=='beta')
-Nalpha <- length(unique(Data_alpha$sub))
-Nbeta <- length(unique(Data_beta$sub))
+subs_alpha <- unique(Data_alpha$sub); Nalpha <- length(subs_alpha)
+subs_beta <- unique(Data_beta$sub); Nbeta <- length(subs_beta)
 
 # Behavior analysis - Static ----------------------------------------------
 if (stat_tests) {
   ##' We first look at the overall effect of feedback on behavior to see if we 
   ##' replicate the findings of previous studies.
+  
+  control <- lmerControl(optimizer = "bobyqa")
+  glmercontrol <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 3e5))
+  
+  # Set contrast coding
+  options(contrasts=c("contr.sum","contr.poly"))
   
   ## Reaction Times 
   # Alpha experiment
@@ -271,19 +277,14 @@ if (stat_tests) {
 
 # Behavior analysis - Dynamics -----------------------------------------------------------
 if (stat_tests) {
-  control <- lmerControl(optimizer = "bobyqa")
-  glmercontrol <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 3e5))
-  
-  # Set contrast coding
-  options(contrasts=c("contr.sum","contr.poly"))
-  
+
   ## Reaction Times
   # Alpha experiment
   rt.int.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (1|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   rt.cond.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.int.alpha,rt.cond.alpha)
   # Singular fit
-  rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
+  # rt.cond.diff.alpha <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_alpha,cor==1),REML = F,control = control)
   anova(rt.cond.alpha)
   
   # Beta experiment
@@ -291,7 +292,7 @@ if (stat_tests) {
   rt.cond.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.int.beta,rt.cond.beta)
   # Singular fit
-  rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
+  # rt.cond.diff.beta <- lmer(rt~condition*difflevel*withinphasetrial + (condition+difflevel|sub),data = subset(Data_beta,cor==1),REML = F,control = control)
   anova(rt.cond.beta)
   
   ## Accuracy
@@ -353,43 +354,47 @@ if (stat_tests) {
 
 # Retrieve fits -----------------------------------------------------------
 # Some fixed arguments
-beta_input <- .1
-Nupdate_per_trial <- 1
-model <- "allpar"
+beta_input <- .1 # Beta scaled to .1 improves convergence
 dt <- .001; sigma <- .1
 binning <- F
 Nsim <- 20
 
-conditions <- sort(unique(Data$condition))
-difflevels <- sort(unique(Data$difflevel)) # Important to sort to match with drift order
 models <- c("no","alpha","beta","both")
 
-totlen <- length(difflevels)*length(subs)*length(models)
+totlen <- length(difflevels)*length(subs_beta)*length(models)
 
-# DDM parameters + hyperparameters + error
+# DDM parameters + DLDC parameters + MSE
 par <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                   bound = NA, drift = NA, ter = NA,cost_ddm = NA, 
-                  sub = rep(subs, each = length(difflevels)*length(models)),
+                  sub = rep(subs_beta, each = length(difflevels)*length(models)),
                   difflevel = rep(difflevels, length.out = totlen),
                   manip = NA, model = rep(models, each = length(difflevels)) )
 
-Data$drift <- NA
+Data_beta$drift <- NA
+
+Data_beta <- Data_beta[order(Data_beta$sub,Data_beta$trial),]
+Data <- Data[order(Data$sub,Data$trial),]
 
 go_to("fit")
-go_to("alternating_fb")
+
+# Create a data frame to store model simulations
 if (!file.exists("anal_sim.Rdata")) {
-  anal_sim <- Data[rep(seq_len(nrow(Data)), each=Nsim*length(models)), c('trial','withinphasetrial','sub','condition','cor')]
+  anal_sim <- Data_beta[rep(seq_len(nrow(Data_beta)), each=Nsim*length(models)), c('trial','withinphasetrial','sub','condition','cor')]
   anal_sim$alpha <- NA
   anal_sim$beta <- NA
   anal_sim$sim <- 1:Nsim
   anal_sim$model <- rep(models,each=Nsim)
 }
-for (s in 1:length(subs)) {
-  print(paste("Retrieving participant",s))
-  #' FIT ALPHA EXPERIMENT
-  temp_dat <- subset(Data,sub==subs[s])
+
+# Retrieve model fits
+for (s in 1:Nbeta) {
   
-  ddm_file <- paste0('ddm/ddmfit_',subs[s],'.Rdata')
+  print(paste("Retrieving participant",s))
+  
+  temp_dat <- subset(Data_beta,sub==subs_beta[s])
+  
+  # DDM fits
+  ddm_file <- paste0('ddm/ddmfit_',subs_beta[s],'.Rdata')
   if(file.exists(ddm_file)){
     load(ddm_file)
   }else{
@@ -397,54 +402,58 @@ for (s in 1:length(subs)) {
   }
   ddm_params <- ddm.results$optim$bestmem[c(1,5:length(ddm.results$optim$bestmem))]
   
-  par[par$sub==subs[s],"bound"] <- ddm.results$optim$bestmem[1]
-  par[par$sub==subs[s],"ter"] <- ddm.results$optim$bestmem[2]
-  par[par$sub==subs[s],"z"] <- ddm.results$optim$bestmem[3]
-  par[par$sub==subs[s],"vratio"] <- ddm.results$optim$bestmem[4]
-  par[par$sub==subs[s]&par$difflevel==difflevels[1],"drift"] <- ddm.results$optim$bestmem[5]
-  par[par$sub==subs[s]&par$difflevel==difflevels[2],"drift"] <- ddm.results$optim$bestmem[6]
-  par[par$sub==subs[s]&par$difflevel==difflevels[3],"drift"] <- ddm.results$optim$bestmem[7]
-  par[par$sub==subs[s],"cost_ddm"] <- ddm.results$optim$bestval
+  # Store estimated parameters in big dataframe
+  par[par$sub==subs_beta[s],"bound"] <- ddm.results$optim$bestmem[1]
+  par[par$sub==subs_beta[s],"ter"] <- ddm.results$optim$bestmem[2]
+  par[par$sub==subs_beta[s],"z"] <- ddm.results$optim$bestmem[3]
+  par[par$sub==subs_beta[s],"vratio"] <- ddm.results$optim$bestmem[4]
+  par[par$sub==subs_beta[s]&par$difflevel==difflevels[1],"drift"] <- ddm.results$optim$bestmem[5]
+  par[par$sub==subs_beta[s]&par$difflevel==difflevels[2],"drift"] <- ddm.results$optim$bestmem[6]
+  par[par$sub==subs_beta[s]&par$difflevel==difflevels[3],"drift"] <- ddm.results$optim$bestmem[7]
+  par[par$sub==subs_beta[s],"cost_ddm"] <- ddm.results$optim$bestval
   
-  #Add estimated drift to dataset
+  # Add estimated drift to behavior data DF
   for (diff in difflevels) {
-    Data$drift[Data$difflevel==diff&Data$sub==subs[s]] <- unique(par[par$sub==subs[s]&par$difflevel==diff,"drift"])
+    Data_beta$drift[Data_beta$difflevel==diff&Data_beta$sub==subs_beta[s]] <- unique(par[par$sub==subs_beta[s]&par$difflevel==diff,"drift"])
   }
-  temp_dat <- subset(Data,sub==subs[s])
   
+  temp_dat <- subset(Data_beta,sub==subs_beta[s])
+  
+  # Retrieve DLDC fits of all 4 variant models
   for (model in models) {
-    ldc_file <- paste0('ldc_nn/behavior_fit/',model,'_learn/ldcfit_',subs[s],'.Rdata')
+    ldc_file <- paste0('ldc_nn/behavior_fit/',model,'_learn/ldcfit_',subs_beta[s],'.Rdata')
     if (file.exists(ldc_file)) {
       load(ldc_file)
-      par[par$sub==subs[s]&par$model==model,"a0"] <- ldc.results$optim$bestmem[1]
-      par[par$sub==subs[s]&par$model==model,"b0"] <- ldc.results$optim$bestmem[2]
-      par[par$sub==subs[s]&par$model==model,"eta_a"] <- ldc.results$optim$bestmem[4]
-      par[par$sub==subs[s]&par$model==model,"eta_b"] <- ldc.results$optim$bestmem[5]
-      par[par$sub==subs[s]&par$model==model,"cost_ldc"] <- ldc.results$optim$bestval
+      par[par$sub==subs_beta[s]&par$model==model,"a0"] <- ldc.results$optim$bestmem[1]
+      par[par$sub==subs_beta[s]&par$model==model,"b0"] <- ldc.results$optim$bestmem[2]
+      par[par$sub==subs_beta[s]&par$model==model,"eta_a"] <- ldc.results$optim$bestmem[4]
+      par[par$sub==subs_beta[s]&par$model==model,"eta_b"] <- ldc.results$optim$bestmem[5]
+      par[par$sub==subs_beta[s]&par$model==model,"cost_ldc"] <- ldc.results$optim$bestval
       
       #' Generate model predictions multiple times to account for the stochastic
       #' nature of estimating single trial accumulated evidence 
       if (!file.exists("anal_sim.Rdata")) {
         for (i in 1:Nsim) {
           results <-
-            ldc.nn.fit.w(params=c(mean(par[par$sub==subs[s]&par$model==model,"a0"]),
-                                  mean(par[par$sub==subs[s]&par$model==model,"b0"]),1,
-                                  mean(par[par$sub==subs[s]&par$model==model,"eta_a"]),
-                                  mean(par[par$sub==subs[s]&par$model==model,"eta_b"])),
+            ldc.nn.fit.w(params=c(mean(par[par$sub==subs_beta[s]&par$model==model,"a0"]),
+                                  mean(par[par$sub==subs_beta[s]&par$model==model,"b0"]),1,
+                                  mean(par[par$sub==subs_beta[s]&par$model==model,"eta_a"]),
+                                  mean(par[par$sub==subs_beta[s]&par$model==model,"eta_b"])),
                          ddm_params = ddm_params,
                          obs=temp_dat,returnFit = F,eta_sep=T,
-                         Nupdate_per_trial=Nupdate_per_trial, binning = binning,
+                         binning = binning,
                          dt = dt, sigma = sigma)
-          anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s]&anal_sim$model==model ,'cj'] <- results$pred
-          anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s]&anal_sim$model==model ,'alpha'] <- results$trace[,1]
-          anal_sim[anal_sim$sim==i&anal_sim$sub==subs[s]&anal_sim$model==model ,'beta'] <- results$trace[,2]  
+          anal_sim[anal_sim$sim==i&anal_sim$sub==subs_beta[s]&anal_sim$model==model ,'cj'] <- results$pred
+          anal_sim[anal_sim$sim==i&anal_sim$sub==subs_beta[s]&anal_sim$model==model ,'alpha'] <- results$trace[,1]
+          anal_sim[anal_sim$sim==i&anal_sim$sub==subs_beta[s]&anal_sim$model==model ,'beta'] <- results$trace[,2]  
         }
       }
     }
   }
   
-  par[par$sub==subs[s],"manip"] <- unique(temp_dat$manip)
+  par[par$sub==subs_beta[s],"manip"] <- unique(temp_dat$manip)
 }
+
 # Save model simulations
 if (!file.exists("anal_sim.Rdata")) {
   save(anal_sim,file="anal_sim.Rdata")
@@ -462,15 +471,83 @@ for (m in models) {
   names(alpha) <- c("trial","sub",paste0("alpha_",m,"_learn"))
   names(beta) <- c("trial","sub",paste0("beta_",m,"_learn"))
   anal_sim_mean <- merge(merge(cj_pred,alpha),beta)
-  Data <- merge(Data,anal_sim_mean)
+  Data_beta <- merge(Data_beta,anal_sim_mean,by=c("trial","sub"))
   
 }
+Data_beta <- Data_beta[order(Data_beta$sub,Data_beta$trial),]
 
 anal_sim$cj_scaled <- anal_sim$cj*6
 
-Data_alpha <- subset(Data,manip=='alpha')
-Data_beta <- subset(Data,manip=='beta')
+# Model comparison --------------------------------------------------------
+par$Ndata_point <-  round(nrow(Data_beta)/Nbeta)
+par$Npar <- 3
+par[par$model=="no",'Npar'] <- 2
+par[par$model=="both",'Npar'] <- 4
 
+bic_custom <- function(Residuals,k,n){
+  return(log(n)*k+n*log(Residuals/n))
+}
+
+### Mean BIC over participants per model
+par$bic <- bic_custom(par$cost_ldc,par$Npar,par$Ndata_point)
+mean_bic <- with(par,aggregate(bic,by=list(model=model),mean))
+mean_bic$delta <- -99
+mean_bic$delta <- mean_bic$x - min(mean_bic$x)
+
+
+### Best model per participant
+model_bic <- with(par,aggregate(bic,list(sub=sub,model=model),mean))
+model_bic <- cast(model_bic, sub ~ model)
+models_ord <- names(model_bic)[2:5]
+model_bic$best <- models_ord[apply(model_bic[,2:5],1,which.min)]
+model_bic$best_learning <- apply(model_bic[,3:5],1,min)
+table(model_bic$best)
+model_bic$diff_learn <- model_bic$best_learning - model_bic$no
+
+
+# Plot differences in BIC
+go_to("plots")
+jpeg("model_comparison.jpg",width=19,height=6,units = 'cm',res=600, pointsize = 10)
+par(mfrow=c(1,2))
+par(mar=c(4,5.5,2,0))
+mean_bic_nolearn <- subset(mean_bic,model=="no" )$delta
+mean_bic_learn <- min(subset(mean_bic,model!="no" )$delta) 
+range_bic_learn <- range(subset(mean_bic,model!="no" )$delta) 
+bp <- barplot(matrix(c(mean_bic_learn,mean_bic_nolearn)), las = 2, horiz=T,xaxt='n',
+              names.arg = c("Learning", "No learning"), border = NA, beside = T,
+              xlab="",ylab = "")
+title(xlab = expression(paste(Delta,"BIC")), ylab = "", line = 2.5)
+axis(1, seq(0,14,2), seq(0,14,2))
+
+# Plot N best models
+par(mar=c(4,3.5,2,2))
+if ("no" %in% model_bic$best) {
+  model_bic[model_bic$best != 'no',"best"] <- "Learning"
+  model_bic[model_bic$best == 'no',"best"] <- "No learning"
+}
+best_model <- table(model_bic$best)
+bp <- barplot(matrix(best_model), las=2, xlab="",ylab = "",horiz=T, 
+              xaxt='n',xlim = c(0,35), beside =T, names.arg = c("", ""), border = NA)
+title(xlab = "Participant count", ylab = "", line = 2.5)
+axis(1, seq(0,35,5), seq(0,35,5))
+# Add model names under each bar
+dev.off()
+par(mar=c(5,4,4,2)+.1)
+par(mfrow=c(1,1))
+
+sub_nolearn_best <- subset(model_bic,best=='No learning')$sub
+sub_learn_best <- subset(model_bic,best!='No learning')$sub
+
+# Add the best model to the empirical data frame
+if ("best" %in% names(Data_beta)) {
+  Data_beta <- Data_beta[,!(names(Data_beta) == "best")]
+}
+Data_beta <- merge(Data_beta,model_bic[,c('sub','best','diff_learn')])
+Data_beta$best <- as.factor(Data_beta$best)
+
+# Create groups according to best model
+Data_beta$group <- "dynamic"
+Data_beta[Data_beta$best == "No learning",]$group <- "static"
 # Analysis of model prediction --------------------------------------------
 if (stat_tests) {
   
@@ -491,124 +568,23 @@ if (stat_tests) {
   vif(cj.pred.cond.acc.interaction.beta) # Multicollinearity
   anova(cj.pred.cond.acc.interaction.beta) #Results  
 }
-# Model comparison --------------------------------------------------------
-par$Ndata_point <-  round(nrow(Data)/Nsub)
-par$Npar <- 3
-par[par$model=="no",'Npar'] <- 2
-par[par$model=="both",'Npar'] <- 4
-
-bic_custom <- function(Residuals,k,n){
-  return(log(n)*k+n*log(Residuals/n))
-}
-
-par$bic <- bic_custom(par$cost_ldc,par$Npar,par$Ndata_point)
-mean_bic <- with(par,aggregate(bic,by=list(model=model,manip=manip),mean))
-mean_bic$delta <- -99
-mean_bic[mean_bic$manip=="alpha","delta"] <- 
-  mean_bic[mean_bic$manip=="alpha",]$x - 
-  min(mean_bic[mean_bic$manip=="alpha",]$x)
-mean_bic[mean_bic$manip=="beta","delta"] <- 
-  mean_bic[mean_bic$manip=="beta",]$x -
-  min(mean_bic[mean_bic$manip=="beta",]$x)
-
-
-### Best model per participant
-model_bic <- with(par,aggregate(bic,list(sub=sub,manip=manip,model=model),mean))
-model_bic <- cast(model_bic, sub + manip ~ model)
-models_ord <- names(model_bic)[3:6]
-model_bic$best <- models_ord[apply(model_bic[,3:6],1,which.min)]
-model_bic$best_learning <- apply(model_bic[,3:5],1,min)
-with(model_bic,aggregate(best,list(manip),table))
-table(subset(model_bic,manip=='alpha')$best)
-table(subset(model_bic,manip=='beta')$best)
-model_bic$diff_learn <- model_bic$best_learning - model_bic$no
-
-
-# Plot differences in BIC
-go_to("plots")
-go_to("paper")
-jpeg("model_comparison.jpg",width=19,height=6,units = 'cm',res=600, pointsize = 10)
-par(mfrow=c(1,2))
-par(mar=c(4,5.5,2,0))
-mean_bic_nolearn <- subset(mean_bic,model=="no" & manip=="beta")$delta
-mean_bic_learn <- min(subset(mean_bic,model!="no" & manip=="beta")$delta) 
-range_bic_learn <- range(subset(mean_bic,model!="no" & manip=="beta")$delta) 
-bp <- barplot(matrix(c(mean_bic_learn,mean_bic_nolearn)), las = 2, horiz=T,xaxt='n',
-              names.arg = c("Learning", "No learning"), border = NA, beside = T,
-              xlab="",ylab = "")
-title(xlab = expression(paste(Delta,"BIC")), ylab = "", line = 2.5)
-axis(1, seq(0,14,2), seq(0,14,2))
-# arrows(mean_bic_learn,bp[1], 
-#        range_bic_learn[2],bp[1],angle=90,length=0.1)
-
-# Plot N best models
-par(mar=c(4,3.5,2,2))
-if ("no" %in% model_bic$best) {
-  model_bic[model_bic$best != 'no',"best"] <- "Learning"
-  model_bic[model_bic$best == 'no',"best"] <- "No learning"
-}
-best_model <- table(subset(model_bic,manip=='beta')$best)
-bp <- barplot(matrix(best_model), las=2, xlab="",ylab = "",horiz=T, 
-              xaxt='n',xlim = c(0,35), beside =T, names.arg = c("", ""), border = NA)
-title(xlab = "Participant count", ylab = "", line = 2.5)
-axis(1, seq(0,35,5), seq(0,35,5))
-# Add model names under each bar
-dev.off()
-par(mar=c(5,4,4,2)+.1)
-par(mfrow=c(1,1))
-
-sub_nolearn_best <- subset(model_bic,best=='No learning')$sub
-sub_learn_best <- subset(model_bic,best!='No learning')$sub
-
-model_bic_learn_vs_nolearn <- subset(model_bic,manip=='beta')[,c('sub','manip','both','no','best')]
-model_bic_learn_vs_nolearn$best <- c("both","no")[apply(model_bic_learn_vs_nolearn[,3:4],1,which.min)]
-table(model_bic_learn_vs_nolearn$best)
-
-# Add the best model to the empirical data frame
-if ("best" %in% names(Data)) {
-  Data <- Data[,!(names(Data) == "best")]
-}
-Data <- merge(Data,model_bic[,c('sub','manip','best','diff_learn')])
-Data$best <- as.factor(Data$best)
-
-# Add a column with the predicted confidence from the best model per participant to the empirical data frame
-Data$cj_pred_best <- NA
-for (s in 1:Nsub) {
-  tempdat <- subset(Data,sub==subs[s])
-  if (unique(tempdat$best=="no")) {
-    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_no_learn
-  } else if (unique(tempdat$best=="alpha")) {
-    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_alpha_learn
-  } else if (unique(tempdat$best=="beta")) {
-    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_beta_learn
-  } else if (unique(tempdat$best=="both")) {
-    Data[Data$sub==subs[s]&Data$manip==tempdat$manip[1],'cj_pred_best'] <- tempdat$cj_pred_both_learn
-  }
-}
-
-# Create groups according to best model
-Data$group <- "dynamic"
-Data[Data$best == "No learning",]$group <- "static"
-Data_alpha <- subset(Data,manip=="alpha")
-Data_beta <- subset(Data,manip=="beta")
-
-# Compute rolling mean per subject ----------------------------------------
+# Compute confidence rolling mean per subject ----------------------------------------
 n <- 25 # Rolling mean window size
 n_err <- 25
 
 trial_conf_sub <- with(Data,aggregate(cj,by=list(trial,cor,sub),mean))
 names(trial_conf_sub) <- c("trial","cor","sub","cj")
 
-pred_conf_sub_beta_learn <- with(Data,aggregate(cj_pred_beta_learn,by=list(trial,cor,sub),mean))
+pred_conf_sub_beta_learn <- with(Data_beta,aggregate(cj_pred_beta_learn,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_beta_learn) <- c("trial","cor","sub","cj")
 
-pred_conf_sub_alpha_learn <- with(Data,aggregate(cj_pred_alpha_learn,by=list(trial,cor,sub),mean))
+pred_conf_sub_alpha_learn <- with(Data_beta,aggregate(cj_pred_alpha_learn,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_alpha_learn) <- c("trial","cor","sub","cj")
 
-pred_conf_sub_both_learn <- with(Data,aggregate(cj_pred_both_learn,by=list(trial,cor,sub),mean))
+pred_conf_sub_both_learn <- with(Data_beta,aggregate(cj_pred_both_learn,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_both_learn) <- c("trial","cor","sub","cj")
 
-pred_conf_sub_no_learn <- with(Data,aggregate(cj_pred_no_learn,by=list(trial,cor,sub),mean))
+pred_conf_sub_no_learn <- with(Data_beta,aggregate(cj_pred_no_learn,by=list(trial,cor,sub),mean))
 names(pred_conf_sub_no_learn) <- c("trial","cor","sub","cj")
 
 trials <- data.frame(trial=rep((0:(Ntrials-1)),each=2),
@@ -628,14 +604,16 @@ for (s in subs) {
   print(s)
   cj_ma[cj_ma$sub==s&cj_ma$cor==0,"cj"] <- ma(subset(cj_ma,sub==s&cor==0),n_err,"cj")
   cj_ma[cj_ma$sub==s&cj_ma$cor==1,"cj"] <- ma(subset(cj_ma,sub==s&cor==1),n,"cj")
-  cj_pred_ma_beta_learn[cj_pred_ma_beta_learn$sub==s&cj_pred_ma_beta_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_beta_learn,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_beta_learn[cj_pred_ma_beta_learn$sub==s&cj_pred_ma_beta_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_beta_learn,sub==s&cor==1),n,"cj")
-  cj_pred_ma_alpha_learn[cj_pred_ma_alpha_learn$sub==s&cj_pred_ma_alpha_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_alpha_learn,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_alpha_learn[cj_pred_ma_alpha_learn$sub==s&cj_pred_ma_alpha_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_alpha_learn,sub==s&cor==1),n,"cj")
-  cj_pred_ma_both_learn[cj_pred_ma_both_learn$sub==s&cj_pred_ma_both_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_both_learn,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_both_learn[cj_pred_ma_both_learn$sub==s&cj_pred_ma_both_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_both_learn,sub==s&cor==1),n,"cj")
-  cj_pred_ma_no_learn[cj_pred_ma_no_learn$sub==s&cj_pred_ma_no_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_no_learn,sub==s&cor==0),n_err,"cj")
-  cj_pred_ma_no_learn[cj_pred_ma_no_learn$sub==s&cj_pred_ma_no_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_no_learn,sub==s&cor==1),n,"cj")
+  if (s %in% subs_beta) {
+    cj_pred_ma_beta_learn[cj_pred_ma_beta_learn$sub==s&cj_pred_ma_beta_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_beta_learn,sub==s&cor==0),n_err,"cj")
+    cj_pred_ma_beta_learn[cj_pred_ma_beta_learn$sub==s&cj_pred_ma_beta_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_beta_learn,sub==s&cor==1),n,"cj")
+    cj_pred_ma_alpha_learn[cj_pred_ma_alpha_learn$sub==s&cj_pred_ma_alpha_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_alpha_learn,sub==s&cor==0),n_err,"cj")
+    cj_pred_ma_alpha_learn[cj_pred_ma_alpha_learn$sub==s&cj_pred_ma_alpha_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_alpha_learn,sub==s&cor==1),n,"cj")
+    cj_pred_ma_both_learn[cj_pred_ma_both_learn$sub==s&cj_pred_ma_both_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_both_learn,sub==s&cor==0),n_err,"cj")
+    cj_pred_ma_both_learn[cj_pred_ma_both_learn$sub==s&cj_pred_ma_both_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_both_learn,sub==s&cor==1),n,"cj")
+    cj_pred_ma_no_learn[cj_pred_ma_no_learn$sub==s&cj_pred_ma_no_learn$cor==0,"cj"] <- ma(subset(cj_pred_ma_no_learn,sub==s&cor==0),n_err,"cj")
+    cj_pred_ma_no_learn[cj_pred_ma_no_learn$sub==s&cj_pred_ma_no_learn$cor==1,"cj"] <- ma(subset(cj_pred_ma_no_learn,sub==s&cor==1),n,"cj")
+  }
 }
 
 cj_pred_ma_beta_learn$model <- "beta"
@@ -663,7 +641,7 @@ yrange_cj <- c(4.2,5.4)
 col_plus_overlay <- rgb(213,94,0,51,maxColorValue = 255)
 col_minus_overlay <- rgb(0,114,178,51,maxColorValue = 255)
 
-setwd(paste0(curdir,"/plots/paper"))
+setwd(paste0(curdir,"/plots"))
 jpeg("Behavior_results2.jpg", width = 19, height = 24, units = "cm", pointsize = 15, res = 1000)
 
 # layout(matrix(c(1,2,3,4,5,6),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5))
@@ -981,43 +959,6 @@ par(mar=c(5,4,4,2)+.1)
 
 # Reanalyze confidence according to group -----------------------------------------------------------
 if (stat_tests) {
-  control <- lmerControl(optimizer = "bobyqa")
-  glmercontrol <- glmerControl(optimizer = "bobyqa")
-  
-  # Set contrast coding
-  options(contrasts=c("contr.sum","contr.poly"))
-  
-  
-  # Alpha
-  cj.cond.acc.interaction.alpha.0 <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
-                                          data = Data_alpha, REML = F,control = control)
-  cj.cond.acc.interaction.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + condition:withinphasetrial:group + (cor + condition + condition:cor|sub),
-                                        data = Data_alpha, REML = F,control = control)
-  anova(cj.cond.acc.interaction.alpha.0,cj.cond.acc.interaction.alpha)
-  plot(resid(cj.cond.acc.interaction.alpha),Data_alpha$cj) #Linearity
-  leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
-  qqmath(cj.cond.acc.interaction.alpha) #Normality
-  anova(cj.cond.acc.interaction.alpha) #Results  
-  vif(cj.cond.acc.interaction.alpha)
-  # post-hoc
-  cj.static.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
-                          data = subset(Data_alpha,group=="static"), REML = F,control = control)
-  vif(cj.static.group)
-  anova(cj.static.group)
-  post_hoc <- emmeans(cj.static.group, ~ condition:withinphasetrial)
-  pairs(post_hoc)
-  post_hoc <- emmeans(cj.static.group, ~ condition:withinphasetrial | cor)
-  pairs(post_hoc)
-  cj.dynamic.group <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
-                           data = subset(Data_alpha,group=="dynamic"), REML = F,control = control)
-  vif(cj.dynamic.group)
-  anova(cj.dynamic.group)
-  post_hoc <- emmeans(cj.dynamic.group, ~ condition:withinphasetrial)
-  pairs(post_hoc)
-  post_hoc <- emmeans(cj.dynamic.group, ~ condition:withinphasetrial | cor)
-  pairs(post_hoc)
-  
-  # Beta
   cj.cond.acc.interaction.beta.0 <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
                                          data = Data_beta, REML = F,control = control)
   cj.cond.acc.interaction.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + condition:withinphasetrial:group + (cor + condition + condition:cor|sub),
@@ -1467,7 +1408,7 @@ yrange_cj <- c(4.2,5.4)
 col_plus_overlay <- rgb(213,94,0,51,maxColorValue = 255)
 col_minus_overlay <- rgb(0,114,178,51,maxColorValue = 255)
 
-setwd(paste0(curdir,"/plots/paper"))
+setwd(paste0(curdir,"/plots"))
 jpeg("Behavior_results_alpha.jpg", width = 19, height = 24, units = "cm", pointsize = 15, res = 1000)
 
 # layout(matrix(c(1,2,3,4,5,6),ncol=2,byrow = F),widths = c(1,2),heights = c(1,1,1.5))
