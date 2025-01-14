@@ -311,26 +311,10 @@ if (stat_tests) {
   
   ## Confidence
   # Alpha experiment
-  cj.int.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_alpha,REML = F,control = control); 
-  cj.cond.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (condition|sub),data = Data_alpha,REML = F,control = control); 
-  anova(m.int,m.cond)
-  cj.cond.acc.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition|sub),data = Data_alpha, REML = F,control = control)
-  anova(m.cond,m.cond.acc)
-  # Singular fit
-  # cj.cond.acc.difflevel.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + difflevel|sub),
-  #                      data = Data_alpha, REML = F,control = control)
-  cj.cond.acc.interaction.alpha <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (cor + condition + condition:cor|sub),
-                                        data = Data_alpha, REML = F,control = control)
-  plot(resid(cj.cond.acc.interaction.alpha),Data_alpha$cj) #Linearity
-  leveneTest(residuals(cj.cond.acc.interaction.alpha) ~ Data_alpha$cor*Data_alpha$condition*Data_alpha$difflevel) #Homogeneity of variance
-  qqmath(cj.cond.acc.interaction.alpha) #Normality
-  anova(cj.cond.acc.interaction.alpha) #Results
   cj.cond.interaction.alpha.cor <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
                                         data = subset(Data_alpha,cor==1), REML = F,control = control)
   anova(cj.cond.interaction.alpha.cor)
-  cj.cond.interaction.alpha.err <- lmer(cj ~ condition*difflevel*withinphasetrial + (condition|sub),
-                                        data = subset(Data_alpha,cor==0), REML = F,control = control)
-  anova(cj.cond.interaction.alpha.err)
+
   
   # Beta experiment
   cj.int.beta <- lmer(cj ~ condition*cor*difflevel*withinphasetrial + (1|sub),data = Data_beta,REML = F,control = control); 
