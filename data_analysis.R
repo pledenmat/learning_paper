@@ -15,8 +15,8 @@ library(scales)
 # library(hrbrthemes)
 library(ggplot2)
 library(geomtextpath)
-sourceCpp("ldc_train.cpp")
-source("ldc_nn_functions.R")
+sourceCpp("dldc_train.cpp")
+source("dldc_functions.R")
 plots <- F
 stat_tests <- F
 
@@ -348,7 +348,7 @@ models <- c("no","alpha","beta","both")
 totlen <- length(difflevels)*length(subs_beta)*length(models)
 
 # DDM parameters + DLDC parameters + MSE
-par <- data.frame(cost_ldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
+par <- data.frame(cost_dldc = NA, a0 = NA, b0 = NA, eta_a = NA, eta_b = NA,
                   bound = NA, drift = NA, ter = NA,cost_ddm = NA, 
                   sub = rep(subs_beta, each = length(difflevels)*length(models)),
                   difflevel = rep(difflevels, length.out = totlen),
@@ -405,21 +405,21 @@ for (s in 1:Nbeta) {
   
   # Retrieve DLDC fits of all 4 variant models
   for (model in models) {
-    ldc_file <- paste0('ldc_nn/behavior_fit/',model,'_learn/ldcfit_',subs_beta[s],'.Rdata')
-    if (file.exists(ldc_file)) {
-      load(ldc_file)
+    dldc_file <- paste0('dldc/behavior_fit/',model,'_learn/ldcfit_',subs_beta[s],'.Rdata')
+    if (file.exists(dldc_file)) {
+      load(dldc_file)
       par[par$sub==subs_beta[s]&par$model==model,"a0"] <- ldc.results$optim$bestmem[1]
       par[par$sub==subs_beta[s]&par$model==model,"b0"] <- ldc.results$optim$bestmem[2]
       par[par$sub==subs_beta[s]&par$model==model,"eta_a"] <- ldc.results$optim$bestmem[4]
       par[par$sub==subs_beta[s]&par$model==model,"eta_b"] <- ldc.results$optim$bestmem[5]
-      par[par$sub==subs_beta[s]&par$model==model,"cost_ldc"] <- ldc.results$optim$bestval
+      par[par$sub==subs_beta[s]&par$model==model,"cost_dldc"] <- ldc.results$optim$bestval
       
       #' Generate model predictions multiple times to account for the stochastic
       #' nature of estimating single trial accumulated evidence 
       if (!file.exists("anal_sim.Rdata")) {
         for (i in 1:Nsim) {
           results <-
-            ldc.nn.fit.w(params=c(mean(par[par$sub==subs_beta[s]&par$model==model,"a0"]),
+            dldc.fit.w(params=c(mean(par[par$sub==subs_beta[s]&par$model==model,"a0"]),
                                   mean(par[par$sub==subs_beta[s]&par$model==model,"b0"]),1,
                                   mean(par[par$sub==subs_beta[s]&par$model==model,"eta_a"]),
                                   mean(par[par$sub==subs_beta[s]&par$model==model,"eta_b"])),
@@ -473,7 +473,7 @@ bic_custom <- function(Residuals,k,n){
 }
 
 ### Mean BIC over participants per model
-par$bic <- bic_custom(par$cost_ldc,par$Npar,par$Ndata_point)
+par$bic <- bic_custom(par$cost_dldc,par$Npar,par$Ndata_point)
 mean_bic <- with(par,aggregate(bic,by=list(model=model),mean))
 mean_bic$delta <- -99
 mean_bic$delta <- mean_bic$x - min(mean_bic$x)

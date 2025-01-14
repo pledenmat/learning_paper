@@ -97,7 +97,7 @@ ddm.fit <- function(params,obs,ntrials=10,dt=.001,sigma=.1,
   return(ddm_cost)
 }
 
-ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000,
+dldc.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000,
                          returnFit=T,estimate_evidence = T,beta_input=.1,
                          confRTname="RTconf",diffname="difflevel",
                          totRTname='rt2',targetname='fb',accname='cor',
@@ -105,9 +105,9 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
                          cost="separated",aggreg_pred="mean",
                          eta_sep=F, fitname='cj',x_err=NULL){
   #' Step 1 : Use DDM bound and drift rate to infer evidence accumulated at each trial
-  #' Step 2 : Gradiant descent 
-  #' Step 3 : Global cost is DDM cost + NN cost
-  #' Loop and optimize NN hyperparameters (learning rate)
+  #' Step 2 : Train network on data
+  #' Step 3 : Compute error between observed and predicted confidence
+  #' Step 4 : Loop and optimize DLDC parameters
   
   if (estimate_evidence) {
     drift <- ddm_params[2:length(ddm_params)] # Make it more flexible
@@ -130,7 +130,7 @@ ldc.nn.fit.w <- function(params,obs,ddm_params,dt=.001,sigma=0.1,Nsim_error=1000
     obs_nn <- obs
     obs_err <- obs[rep(seq_len(nrow(obs)), each=Nsim_error), ]
     
-    # Add post-decisional evidence: EVpost ~ N(drift*RT, sigma²*RT)
+    # Add post-decisional evidence: EVpost ~ N(drift*RT, sigma?*RT)
     # Post decision drift rate sign depends on accuracy
     obs_nn$evidence <- obs_nn$evidence + 
       rnorm(nrow(obs_nn),
